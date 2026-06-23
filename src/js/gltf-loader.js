@@ -41,6 +41,3 @@ export function loadGltf(loader, modelFilename, { onLoad, onError } = {}) {
       onError?.(error, []);
     });
 }
-
-/** @deprecated Use loadGltf */
-export const loadGltfWithDebugFallback = loadGltf;
