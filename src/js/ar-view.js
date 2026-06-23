@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/loaders/GLTFLoader.js";
 import { ARButton } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/webxr/ARButton.js";
 import { getModelFromQuery } from "./model-registry.js";
+import { buildMenuBackUrl } from "./menu-navigation.js";
 import { loadGltf } from "./gltf-loader.js";
 import { playModelAnimation } from "./gltf-animations.js";
 import {
@@ -16,12 +17,7 @@ const titleEl = document.getElementById("ar-model-name");
 const backBtn = document.getElementById("back-btn");
 
 backBtn.addEventListener("click", () => {
-  const backUrl = new URL("./index.html", window.location.href);
-  const model = getModelFromQuery(window.location.search);
-  if (model.entry) {
-    backUrl.searchParams.set("id", model.entry.id);
-  }
-  window.location.href = backUrl.toString();
+  window.location.href = buildMenuBackUrl(window.location.search).toString();
 });
 
 const selection = getModelFromQuery(window.location.search);

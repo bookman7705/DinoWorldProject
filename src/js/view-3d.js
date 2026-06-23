@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/loaders/GLTFLoader.js";
 import { getModelFromQuery, ISLAND_WORLD_FILE } from "./model-registry.js";
+import { buildMenuBackUrl } from "./menu-navigation.js";
 import { loadGltf } from "./gltf-loader.js";
 import { CameraController } from "./view-3d/camera-controller.js";
 import { configureGltfMaterials, configureGltfRenderer } from "./gltf-materials.js";
@@ -14,12 +15,7 @@ const titleEl = document.getElementById("view-3d-model-name");
 const backBtn = document.getElementById("back-btn");
 
 backBtn.addEventListener("click", () => {
-  const backUrl = new URL("./index.html", window.location.href);
-  const model = getModelFromQuery(window.location.search);
-  if (model.entry) {
-    backUrl.searchParams.set("id", model.entry.id);
-  }
-  window.location.href = backUrl.toString();
+  window.location.href = buildMenuBackUrl(window.location.search).toString();
 });
 
 const selection = getModelFromQuery(window.location.search);

@@ -1,5 +1,6 @@
 import { getModelFromQuery } from "./model-registry.js";
 import { resolveRemoteModelUrl } from "./asset-urls.js";
+import { buildMenuBackUrl } from "./menu-navigation.js";
 
 const titleEl = document.getElementById("ar-model-name");
 const statusEl = document.getElementById("ar-status");
@@ -8,12 +9,7 @@ const startArBtn = document.getElementById("start-ar-btn");
 const viewer = document.getElementById("ios-viewer");
 
 backBtn.addEventListener("click", () => {
-  const backUrl = new URL("./index.html", window.location.href);
-  const model = getModelFromQuery(window.location.search);
-  if (model.entry) {
-    backUrl.searchParams.set("id", model.entry.id);
-  }
-  window.location.href = backUrl.toString();
+  window.location.href = buildMenuBackUrl(window.location.search).toString();
 });
 
 const selection = getModelFromQuery(window.location.search);
