@@ -187,16 +187,37 @@ export const MODEL_REGISTRY = {
   }
 };
 
+export function getRegistryEntry(id) {
+  if (id == null) {
+    return null;
+  }
+
+  const normalizedId = String(id).trim().toLowerCase();
+  if (!normalizedId) {
+    return null;
+  }
+
+  return MODEL_REGISTRY[normalizedId] ?? null;
+}
+
 export function getModelFromQuery(search) {
   const params = new URLSearchParams(search);
   const id = (params.get("id") || "").trim().toLowerCase();
-  const entry = MODEL_REGISTRY[id];
+  const entry = getRegistryEntry(id);
 
   return {
     id,
     entry,
     hasValidId: Boolean(entry)
   };
+}
+
+export function getModelFileForId(id) {
+  const entry = getRegistryEntry(id);
+  if (!entry?.modelFile) {
+    return null;
+  }
+  return entry.modelFile;
 }
 
 export function getAvailableModels() {

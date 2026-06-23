@@ -8,7 +8,7 @@ import {
   IMAGE_SCAN_TARGETS,
   resolveImageScanModelScale
 } from "./image-scan-registry.js";
-import { loadGltfWithDebugFallback } from "./gltf-loader.js";
+import { loadGltf } from "./gltf-loader.js";
 import { configureGltfMaterials, configureGltfRenderer } from "./gltf-materials.js";
 import { playModelAnimation } from "./gltf-animations.js";
 
@@ -94,9 +94,9 @@ function setHint(message, tone = "scanning") {
   scanHint.classList.add(tone === "found" ? "scan-hint--found" : "scan-hint--scanning");
 }
 
-function loadGltf(url) {
+function loadGltfAsync(modelFile) {
   return new Promise((resolve, reject) => {
-    loadGltfWithDebugFallback(loader, url, {
+    loadGltf(loader, modelFile, {
       onLoad: resolve,
       onError: reject
     });
@@ -110,11 +110,11 @@ async function preloadModels(onProgress) {
   await Promise.all(
     ids.map(async (id) => {
       const entry = MODEL_REGISTRY[id];
-      if (!entry) {
-        throw new Error(`No model registry entry for "${id}"`);
+      if (!entry?.modelFile) {
+        throw new Error(`No model file configured for image-scan id "${id}"`);
       }
 
-      const gltf = await loadGltf(entry.modelFile);
+      const gltf = await loadGltfAsync(entry.modelFile);
       configureGltfMaterials(gltf.scene);
       modelCache[id] = { scene: gltf.scene, animations: gltf.animations };
 

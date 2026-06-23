@@ -1,7 +1,5 @@
 import { getModelFromQuery } from "./model-registry.js";
 import { resolveRemoteModelUrl } from "./asset-urls.js";
-import { getDebugLocalModelUrls } from "./debug.js";
-import { getModelFilename } from "./gltf-loader.js";
 
 const titleEl = document.getElementById("ar-model-name");
 const statusEl = document.getElementById("ar-status");
@@ -23,6 +21,12 @@ if (!selection.entry) {
   statusEl.textContent = "Invalid model ID. Return and scan a valid QR code.";
   throw new Error("Invalid model id");
 }
+
+if (!selection.entry.modelFile) {
+  statusEl.textContent = "Model configuration error: missing model file.";
+  throw new Error(`Missing modelFile for id "${selection.id}"`);
+}
+
 titleEl.textContent = selection.entry.label;
 
 if (selection.entry.animation) {
@@ -33,35 +37,13 @@ statusEl.textContent = "Model loading...";
 
 let iosSrcUrl = null;
 
-async function resolveModelAssetUrl(filename) {
-  const candidates = [];
-
-  try {
-    candidates.push(await resolveRemoteModelUrl(filename));
-  } catch (error) {
-    console.warn(`[ios-ar] Signed URL unavailable for ${filename}`, error);
-  }
-
-  for (const fallbackUrl of getDebugLocalModelUrls(getModelFilename(filename))) {
-    if (!candidates.includes(fallbackUrl)) {
-      candidates.push(fallbackUrl);
-    }
-  }
-
-  if (!candidates.length) {
-    throw new Error(`No load candidates for ${filename}`);
-  }
-
-  return candidates[0];
-}
-
 async function initViewer() {
   try {
-    const modelUrl = await resolveModelAssetUrl(selection.entry.modelFile);
+    const modelUrl = await resolveRemoteModelUrl(selection.entry.modelFile);
     viewer.src = modelUrl;
 
     if (selection.entry.iosFile) {
-      iosSrcUrl = await resolveModelAssetUrl(selection.entry.iosFile);
+      iosSrcUrl = await resolveRemoteModelUrl(selection.entry.iosFile);
       viewer.setAttribute("ios-src", iosSrcUrl);
     }
   } catch (error) {

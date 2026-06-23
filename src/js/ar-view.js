@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/loaders/GLTFLoader.js";
 import { ARButton } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/webxr/ARButton.js";
 import { getModelFromQuery } from "./model-registry.js";
-import { loadGltfWithDebugFallback } from "./gltf-loader.js";
+import { loadGltf } from "./gltf-loader.js";
 import { playModelAnimation } from "./gltf-animations.js";
 import {
   configureGltfMaterials,
@@ -26,9 +26,15 @@ backBtn.addEventListener("click", () => {
 
 const selection = getModelFromQuery(window.location.search);
 if (!selection.entry) {
-  statusEl.textContent = "Invalid model ID. Return and scan a valid QR code.";
+  statusEl.textContent = `Invalid model ID "${selection.id || ""}". Use a valid id like ?id=allosaurus.`;
   helpEl.textContent = "";
   throw new Error("Invalid model id");
+}
+
+if (!selection.entry.modelFile) {
+  statusEl.textContent = "Model configuration error: missing model file.";
+  helpEl.textContent = "";
+  throw new Error(`Missing modelFile for id "${selection.id}"`);
 }
 
 titleEl.textContent = selection.entry.label;
@@ -70,7 +76,7 @@ let mixer = null;
 let placed = false;
 
 statusEl.textContent = "Loading model...";
-loadGltfWithDebugFallback(loader, selection.entry.modelFile, {
+loadGltf(loader, selection.entry.modelFile, {
   onLoad: (gltf) => {
     model = gltf.scene;
     configureGltfMaterials(model, { debug: debugMaterials });

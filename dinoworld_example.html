@@ -24,8 +24,16 @@ let scene, camera, renderer, controls;
 let mixer1, mixer2, mixer3;
 const clock = new THREE.Clock();
 
-const MODEL_GATEWAY_SIGN_URL =
-  "https://model-gateway.shawnk7705.workers.dev/sign";
+const MODEL_GATEWAY_ORIGIN = "https://model-gateway.shawnk7705.workers.dev";
+
+function resolveSignedUrl(filePath, rawUrl) {
+  const key = filePath.replace(/^\/+/, "");
+  if (/^https?:\/\//i.test(rawUrl) && !rawUrl.includes("undefined")) {
+    return rawUrl;
+  }
+  const query = rawUrl.includes("?") ? rawUrl.slice(rawUrl.indexOf("?")) : "";
+  return `${MODEL_GATEWAY_ORIGIN}/${key}${query}`;
+}
 
 init();
 animate();
@@ -77,11 +85,12 @@ function init() {
   const audioLoader = new THREE.AudioLoader();
 
   async function loadSignedAsset(filePath, onLoad) {
+    const key = filePath.replace(/^\/+/, "");
     const res = await fetch(
-      `${MODEL_GATEWAY_SIGN_URL}?file=${encodeURIComponent(filePath)}`
+      `${MODEL_GATEWAY_ORIGIN}/sign?file=${encodeURIComponent(key)}`
     );
     const data = await res.json();
-    audioLoader.load(data.url, onLoad);
+    audioLoader.load(resolveSignedUrl(key, data.url), onLoad);
   }
 
   loadSignedAsset("ar-models/ocean-loop-sfx.mp3", (buffer) => {
@@ -103,11 +112,12 @@ function init() {
   const loader = new GLTFLoader();
 
   async function loadModel(name, onLoad) {
+    const key = `ar-models/${name}`;
     const res = await fetch(
-      `${MODEL_GATEWAY_SIGN_URL}?file=${encodeURIComponent(`ar-models/${name}`)}`
+      `${MODEL_GATEWAY_ORIGIN}/sign?file=${encodeURIComponent(key)}`
     );
     const data = await res.json();
-    loader.load(data.url, onLoad);
+    loader.load(resolveSignedUrl(key, data.url), onLoad);
   }
 
   loadModel("IslandWorld.glb", (gltf) => {

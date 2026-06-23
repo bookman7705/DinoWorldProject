@@ -62,15 +62,24 @@ scene.add(dirLight);
 const loader = new GLTFLoader();
 let mixer;
 
-const MODEL_GATEWAY_SIGN_URL =
-  "https://model-gateway.shawnk7705.workers.dev/sign";
+const MODEL_GATEWAY_ORIGIN = "https://model-gateway.shawnk7705.workers.dev";
+
+function resolveSignedUrl(filePath, rawUrl) {
+  const key = filePath.replace(/^\/+/, "");
+  if (/^https?:\/\//i.test(rawUrl) && !rawUrl.includes("undefined")) {
+    return rawUrl;
+  }
+  const query = rawUrl.includes("?") ? rawUrl.slice(rawUrl.indexOf("?")) : "";
+  return `${MODEL_GATEWAY_ORIGIN}/${key}${query}`;
+}
 
 async function loadModel(name, onLoad) {
+  const key = `ar-models/${name}`;
   const res = await fetch(
-    `${MODEL_GATEWAY_SIGN_URL}?file=${encodeURIComponent(`ar-models/${name}`)}`
+    `${MODEL_GATEWAY_ORIGIN}/sign?file=${encodeURIComponent(key)}`
   );
   const data = await res.json();
-  loader.load(data.url, onLoad);
+  loader.load(resolveSignedUrl(key, data.url), onLoad);
 }
 
 loadModel("rex.glb", (gltf) => {

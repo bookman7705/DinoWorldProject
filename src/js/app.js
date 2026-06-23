@@ -38,22 +38,20 @@ if (selected.id === "scan") {
       : "No QR model loaded. Modes will prompt for model selection.";
   } else if (!selected.hasValidId) {
     modelInfoEl.textContent =
-      "Invalid or missing model ID. Use a QR code like ?id=rex, ?id=scan (image scan), or another dinosaur id.";
+      "No dinosaur selected yet. Tap 3D View to choose one, or scan a QR code like ?id=rex.";
     viewArBtn.disabled = true;
     viewArBtn.style.opacity = "0.6";
-    view3dBtn.disabled = true;
-    view3dBtn.style.opacity = "0.6";
   } else {
     modelInfoEl.textContent = `Selected: ${selected.entry.label}. ${selected.entry.description}`;
   }
 
-  async function resolveModelEntry() {
-    if (debugMode) {
-      return promptModelSelection(getAvailableModels());
-    }
-
+  async function resolveModelEntry({ promptWhenMissing = false } = {}) {
     if (selected.hasValidId) {
       return selected.entry;
+    }
+
+    if (promptWhenMissing || debugMode) {
+      return promptModelSelection(getAvailableModels());
     }
 
     return null;
@@ -93,7 +91,7 @@ if (selected.id === "scan") {
   }
 
   viewArBtn.addEventListener("click", async () => {
-    const entry = await resolveModelEntry();
+    const entry = await resolveModelEntry({ promptWhenMissing: debugMode });
     if (!entry) {
       if (!debugMode) {
         statusMessageEl.textContent = "Cannot launch AR: model ID not recognized.";
@@ -109,11 +107,8 @@ if (selected.id === "scan") {
   });
 
   view3dBtn.addEventListener("click", async () => {
-    const entry = await resolveModelEntry();
+    const entry = await resolveModelEntry({ promptWhenMissing: true });
     if (!entry) {
-      if (!debugMode) {
-        statusMessageEl.textContent = "Cannot launch 3D View: model ID not recognized.";
-      }
       return;
     }
 
