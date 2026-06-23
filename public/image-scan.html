@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Dino World Image Scan</title>
+  <link rel="stylesheet" href="./src/styles/main.css">
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/",
+      "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+    }
+  }
+  </script>
+</head>
+<body class="image-scan-body">
+  <div id="scan-menu" class="menu-screen">
+    <section class="menu-card">
+      <p class="eyebrow">Dino World</p>
+      <h1>Image Scan</h1>
+      <p class="subtitle">
+        Point your camera at a dinosaur tracking image. Keep the full image in view and hold the device steady for the best experience.
+      </p>
+
+      <div class="button-stack">
+        <button id="start-scan-btn" class="menu-btn menu-btn-primary">Start Scan</button>
+        <button id="back-btn" class="menu-btn menu-btn-secondary">Back</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="mindar-container" hidden></div>
+  <button id="scan-back-btn" class="overlay-btn scan-back-btn" type="button" hidden>Back</button>
+  <p id="scan-hint" class="scan-hint" hidden aria-live="polite"></p>
+
+  <script type="module" src="./src/js/image-scan-view.js"></script>
+</body>
+</html>

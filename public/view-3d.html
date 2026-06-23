@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Dino World 3D View</title>
+  <link rel="stylesheet" href="./src/styles/main.css">
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body class="view-3d-body">
+  <div id="view-3d-overlay" class="ar-overlay">
+    <button id="back-btn" class="overlay-btn">Back</button>
+    <div class="overlay-panel">
+      <p id="view-3d-model-name" class="overlay-title"></p>
+      <p id="view-3d-description" class="overlay-description" hidden></p>
+      <p id="view-3d-help" class="overlay-help">Drag to orbit. Pinch or scroll to zoom.</p>
+      <p id="view-3d-status" class="overlay-status" aria-live="polite"></p>
+    </div>
+  </div>
+
+  <script type="module" src="./src/js/view-3d.js"></script>
+</body>
+</html>

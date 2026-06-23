@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Dino World AR View (iOS)</title>
+  <link rel="stylesheet" href="./src/styles/main.css">
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+</head>
+<body class="ar-ios-body">
+  <div class="ios-header">
+    <button id="back-btn" class="overlay-btn">Back</button>
+    <p id="ar-model-name" class="ios-title"></p>
+  </div>
+
+  <model-viewer
+    id="ios-viewer"
+    ar
+    ar-modes="quick-look scene-viewer webxr"
+    camera-controls
+    shadow-intensity="1"
+    environment-image="neutral"
+    autoplay
+    animation-name="*"
+    reveal="interaction"
+  ></model-viewer>
+
+  <div class="ios-actions">
+    <button id="start-ar-btn" class="menu-btn menu-btn-primary">View in AR</button>
+    <p id="ar-status" class="status-message" aria-live="polite"></p>
+  </div>
+
+  <script type="module" src="./src/js/ar-ios-view.js"></script>
+</body>
+</html>

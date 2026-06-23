@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Island Viewer 3D 9</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { margin: 0; overflow: hidden; background: #111; -webkit-tap-highlight-color: transparent; }
+  canvas { display: block; touch-action: none; -webkit-touch-callout: none; }
+</style>
+</head>
+<body>
+
+<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+<script>eruda.init();</script>
+
+<script type="module">
+// esm.sh resolves bare 'three' inside addons for Safari/iOS (no import map)
+import * as THREE from 'https://esm.sh/three@0.160.0';
+import { GLTFLoader } from 'https://esm.sh/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+let scene, camera, renderer, controls;
+let mixer1, mixer2, mixer3;
+const clock = new THREE.Clock();
+
+const MODEL_GATEWAY_SIGN_URL =
+  "https://model-gateway.shawnk7705.workers.dev/sign";
+
+init();
+animate();
+
+function init() {
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x111111);
+
+  const initialW = window.innerWidth || 1;
+  const initialH = window.innerHeight || 1;
+  camera = new THREE.PerspectiveCamera(60, initialW / initialH, 0.1, 1000);
+  camera.position.set(0, 5, 12);
+
+  // iOS Safari: alpha:false and low-power often required for WebGL to render; cap pixel ratio to avoid GPU limits
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const webglOpts = {
+    antialias: !isIOS,
+    alpha: false,
+    powerPreference: 'low-power',
+    failIfMajorPerformanceCrisis: false
+  };
+  renderer = new THREE.WebGLRenderer(webglOpts);
+  const pixelRatio = isIOS ? Math.min(window.devicePixelRatio, 2) : window.devicePixelRatio;
+  renderer.setPixelRatio(pixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x111111, 1);
+  const canvas = renderer.domElement;
+  canvas.style.webkitTransform = 'translateZ(0)';
+  document.body.appendChild(canvas);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.target.set(0, 2, 0);
+
+  // Lighting
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
+  scene.add(hemiLight);
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+  dirLight.position.set(5, 10, 7);
+  scene.add(dirLight);
+
+  // Audio
+  const listener = new THREE.AudioListener();
+  camera.add(listener);
+
+  const oceanSound = new THREE.Audio(listener);
+  const audioLoader = new THREE.AudioLoader();
+
+  async function loadSignedAsset(filePath, onLoad) {
+    const res = await fetch(
+      `${MODEL_GATEWAY_SIGN_URL}?file=${encodeURIComponent(filePath)}`
+    );
+    const data = await res.json();
+    audioLoader.load(data.url, onLoad);
+  }
+
+  loadSignedAsset("ar-models/ocean-loop-sfx.mp3", (buffer) => {
+      oceanSound.setBuffer(buffer);
+      oceanSound.setLoop(true);
+      oceanSound.setVolume(0.6);
+      let audioStarted = false;
+      const playAudio = () => {
+        if (audioStarted) return;
+        audioStarted = true;
+        oceanSound.play();
+        document.removeEventListener('click', playAudio);
+        document.removeEventListener('touchend', playAudio);
+      };
+      document.addEventListener('click', playAudio);
+      document.addEventListener('touchend', playAudio);
+    });
+
+  const loader = new GLTFLoader();
+
+  async function loadModel(name, onLoad) {
+    const res = await fetch(
+      `${MODEL_GATEWAY_SIGN_URL}?file=${encodeURIComponent(`ar-models/${name}`)}`
+    );
+    const data = await res.json();
+    loader.load(data.url, onLoad);
+  }
+
+  loadModel("IslandWorld.glb", (gltf) => {
+    const island = gltf.scene;
+    island.scale.set(1,1,1);
+    scene.add(island);
+
+    if (gltf.animations.length) {
+      mixer1 = new THREE.AnimationMixer(island);
+      gltf.animations.forEach(clip => mixer1.clipAction(clip).play());
+    }
+  });
+
+  loadModel("stego.glb", (gltf) => {
+    const stego = gltf.scene;
+    stego.scale.set(1.75,1.75,1.75);
+    stego.position.set(-1.5, 0, -3.5);
+    scene.add(stego);
+
+    if (gltf.animations.length) {
+      mixer2 = new THREE.AnimationMixer(stego);
+      gltf.animations.forEach(clip => mixer2.clipAction(clip).play());
+    }
+  });
+
+  loadModel("rex.glb", (gltf) => {
+    const rex = gltf.scene;
+    rex.scale.set(0.4,0.4,0.4);
+    rex.position.set(3, -0.1, -3.5);
+    rex.rotation.y = -Math.PI / 2;
+    scene.add(rex);
+
+    if (gltf.animations.length) {
+      mixer3 = new THREE.AnimationMixer(rex);
+      gltf.animations.forEach(clip => mixer3.clipAction(clip).play());
+    }
+  });
+
+  window.addEventListener('resize', onWindowResize);
+  if (typeof window.visualViewport !== 'undefined') {
+    window.visualViewport.addEventListener('resize', onWindowResize);
+  }
+  // iOS: force correct size after layout (address bar / safe area)
+  if (isIOS) setTimeout(onWindowResize, 100);
+}
+
+function onWindowResize() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  if (w <= 0 || h <= 0) return;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const delta = clock.getDelta();
+  if (mixer1) mixer1.update(delta);
+  if (mixer2) mixer2.update(delta);
+  if (mixer3) mixer3.update(delta);
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+</script>
+
+</body>
+</html>

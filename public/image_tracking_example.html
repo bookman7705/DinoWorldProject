@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stable AR Visible</title>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+    "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { MindARThree } from 'mindar-image-three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+/* =====================
+   SMOOTHING SETTINGS
+===================== */
+const POSITION_SMOOTH = 0.08;
+const ROTATION_SMOOTH = 0.08;
+
+/* =====================
+   MINDAR SETUP
+===================== */
+const mindarThree = new MindARThree({
+  container: document.querySelector("#container"),
+  imageTargetSrc: "./mind/Trex.mind",
+  filterMinCF: 0.0001,
+  filterBeta: 0.01
+});
+
+const { renderer, scene, camera } = mindarThree;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+
+/* =====================
+   ANCHOR & MODEL GROUP
+===================== */
+const anchor = mindarThree.addAnchor(0);
+
+/* Smoothed model group attached directly to the anchor */
+const smoothedGroup = new THREE.Group();
+anchor.group.add(smoothedGroup);
+
+/* =====================
+   LIGHTING
+===================== */
+scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+dirLight.position.set(0,5,5);
+scene.add(dirLight);
+
+/* =====================
+   MODEL LOADING
+===================== */
+const loader = new GLTFLoader();
+let mixer;
+
+const MODEL_GATEWAY_SIGN_URL =
+  "https://model-gateway.shawnk7705.workers.dev/sign";
+
+async function loadModel(name, onLoad) {
+  const res = await fetch(
+    `${MODEL_GATEWAY_SIGN_URL}?file=${encodeURIComponent(`ar-models/${name}`)}`
+  );
+  const data = await res.json();
+  loader.load(data.url, onLoad);
+}
+
+loadModel("rex.glb", (gltf) => {
+    const model = gltf.scene;
+    model.scale.set(0.2, 0.2, 0.2);
+    model.rotation.set(Math.PI/2, 0, 0);
+
+    /* initially at origin of smoothed group */
+    model.position.set(0,0,0);
+
+    smoothedGroup.add(model);
+
+    if (gltf.animations.length > 0) {
+      mixer = new THREE.AnimationMixer(model);
+      const action = mixer.clipAction(gltf.animations[0]);
+      action.loop = THREE.LoopRepeat;
+      action.play();
+    }
+});
+
+/* =====================
+   CLOCK
+===================== */
+const clock = new THREE.Clock();
+
+/* =====================
+   START LOOP
+===================== */
+const start = async () => {
+  await mindarThree.start();
+
+  renderer.setAnimationLoop(() => {
+    const delta = clock.getDelta();
+    if(mixer) mixer.update(delta);
+
+    /* Smooth the model relative to the anchor's local origin */
+    smoothedGroup.position.lerp(new THREE.Vector3(0,0,0), POSITION_SMOOTH);
+
+    const targetQuat = new THREE.Quaternion(); // identity rotation
+    smoothedGroup.quaternion.slerp(targetQuat, ROTATION_SMOOTH);
+
+    renderer.render(scene, camera);
+  });
+};
+
+/* =====================
+   BUTTONS
+===================== */
+document.querySelector("#startButton").addEventListener("click", start);
+document.querySelector("#stopButton").addEventListener("click", () => {
+  mindarThree.stop();
+  renderer.setAnimationLoop(null);
+});
+</script>
+
+<style>
+body { margin:0; overflow:hidden; }
+#container { width:100vw; height:100vh; position:relative; overflow:hidden; }
+#control { position:fixed; top:0; left:0; z-index:2; background:white; padding:5px; }
+</style>
+</head>
+
+<body>
+<div id="control">
+<button id="startButton">Start</button>
+<button id="stopButton">Stop</button>
+</div>
+<div id="container"></div>
+</body>
+</html>
