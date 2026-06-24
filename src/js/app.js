@@ -43,23 +43,15 @@ function stripModelIdFromDebugUrl() {
   window.history.replaceState(null, "", cleanUrl.toString());
 }
 
-async function resolveModelEntry({ promptWhenMissing = false } = {}) {
-  const debug = isDebugMode(window.location.search);
+async function resolveModelEntry() {
+  return promptModelSelection(getAvailableModels(), { showIds: true });
+}
 
-  if (debug) {
-    return promptModelSelection(getAvailableModels(), { showIds: true });
+function setViewModeButtonsEnabled(enabled) {
+  for (const btn of [viewArBtn, view3dBtn]) {
+    btn.disabled = !enabled;
+    btn.style.opacity = enabled ? "" : "0.6";
   }
-
-  const current = getModelFromQuery(window.location.search);
-  if (current.hasValidId) {
-    return current.entry;
-  }
-
-  if (promptWhenMissing) {
-    return promptModelSelection(getAvailableModels(), { showIds: false });
-  }
-
-  return null;
 }
 
 if (selected.id === "scan") {
@@ -77,15 +69,16 @@ if (selected.id === "scan") {
       modelInfoEl.textContent = "Choose a view mode, then pick a dinosaur from the list.";
     }
 
+    setViewModeButtonsEnabled(true);
     stripModelIdFromDebugUrl();
     window.addEventListener("pageshow", stripModelIdFromDebugUrl);
   } else if (!selected.hasValidId) {
     modelInfoEl.textContent =
-      "No dinosaur selected yet. Tap 3D View to choose one, or scan a QR code like ?id=MOSA.";
-    viewArBtn.disabled = true;
-    viewArBtn.style.opacity = "0.6";
+      "No dinosaur selected yet. Scan a QR code like ?id=MOSA to get started.";
+    setViewModeButtonsEnabled(false);
   } else {
     modelInfoEl.textContent = `Selected: ${selected.entry.label}. ${selected.entry.description}`;
+    setViewModeButtonsEnabled(true);
   }
 
   function launchView3d(entry) {
@@ -121,12 +114,9 @@ if (selected.id === "scan") {
     window.location.href = url.toString();
   }
 
-  async function launchViewWithPicker(launch, { promptWhenMissing = false } = {}) {
-    const entry = await resolveModelEntry({ promptWhenMissing });
+  async function launchViewWithPicker(launch) {
+    const entry = await resolveModelEntry();
     if (!entry) {
-      if (!isDebugMode(window.location.search) && launch === launchAr) {
-        statusMessageEl.textContent = "Cannot launch AR: model ID not recognized.";
-      }
       return;
     }
 
@@ -134,7 +124,17 @@ if (selected.id === "scan") {
   }
 
   viewArBtn.addEventListener("click", () => {
-    void launchViewWithPicker(launchAr, { promptWhenMissing: true });
+    if (debugMode) {
+      void launchViewWithPicker(launchAr);
+      return;
+    }
+
+    if (!selected.hasValidId) {
+      statusMessageEl.textContent = "Cannot launch AR: model ID not recognized.";
+      return;
+    }
+
+    launchAr(selected.entry);
   });
 
   imageScanBtn.addEventListener("click", () => {
@@ -142,6 +142,16 @@ if (selected.id === "scan") {
   });
 
   view3dBtn.addEventListener("click", () => {
-    void launchViewWithPicker(launchView3d, { promptWhenMissing: true });
+    if (debugMode) {
+      void launchViewWithPicker(launchView3d);
+      return;
+    }
+
+    if (!selected.hasValidId) {
+      statusMessageEl.textContent = "Cannot launch 3D View: model ID not recognized.";
+      return;
+    }
+
+    launchView3d(selected.entry);
   });
 }

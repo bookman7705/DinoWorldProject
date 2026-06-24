@@ -10,12 +10,14 @@ import {
   resolveImageScanModelScale
 } from "./image-scan-registry.js";
 import { isDebugMode } from "./debug.js";
+import { buildMenuBackUrl } from "./menu-navigation.js";
 import { promptModelSelection } from "./model-picker.js";
 import { loadGltf } from "./gltf-loader.js";
 import { configureGltfMaterials, configureGltfRenderer } from "./gltf-materials.js";
 import { playModelAnimation } from "./gltf-animations.js";
 
 const scanMenu = document.getElementById("scan-menu");
+const scanSubtitleEl = document.getElementById("scan-subtitle");
 const mindarContainer = document.getElementById("mindar-container");
 const startScanBtn = document.getElementById("start-scan-btn");
 const menuBackBtn = document.getElementById("back-btn");
@@ -36,8 +38,44 @@ let anchor = null;
 let cachedModel = null;
 let sessionRunning = false;
 
+const debugMode = isDebugMode(window.location.search);
+const selection = getModelFromQuery(window.location.search);
+
+function getScanTargetFromUrl() {
+  if (!selection.hasValidId) {
+    return null;
+  }
+
+  return getImageScanTarget(selection.id);
+}
+
+function initScanMenu() {
+  if (debugMode) {
+    scanSubtitleEl.textContent =
+      "Choose a dinosaur, then point your camera at its tracking image.";
+    return;
+  }
+
+  const target = getScanTargetFromUrl();
+  if (!target) {
+    scanSubtitleEl.textContent = selection.hasValidId
+      ? "Image scan is not available for this dinosaur yet."
+      : "No dinosaur selected. Scan a QR code like ?id=MOSA to get started.";
+    startScanBtn.disabled = true;
+    startScanBtn.style.opacity = "0.6";
+    return;
+  }
+
+  const entry = MODEL_REGISTRY[target.id];
+  scanSubtitleEl.textContent = entry
+    ? `Point your camera at the ${entry.label} tracking image.`
+    : "Point your camera at the tracking image.";
+}
+
+initScanMenu();
+
 menuBackBtn.addEventListener("click", () => {
-  void exitImageScan("./index.html");
+  void exitImageScan(buildMenuBackUrl(window.location.search).toString());
 });
 
 scanBackBtn.addEventListener("click", async () => {
@@ -50,6 +88,11 @@ startScanBtn.addEventListener("click", async () => {
   try {
     const target = await resolveScanTarget();
     if (!target) {
+      if (!debugMode) {
+        scanSubtitleEl.textContent = selection.hasValidId
+          ? "Image scan is not available for this dinosaur yet."
+          : "Cannot start scan: model ID not recognized.";
+      }
       startScanBtn.disabled = false;
       return;
     }
@@ -105,15 +148,18 @@ function getScanPickerModels() {
 }
 
 async function resolveScanTarget() {
-  const fromUrl = getModelFromQuery(window.location.search);
-  const urlTarget = getImageScanTarget(fromUrl.id);
+  const urlTarget = getScanTargetFromUrl();
   if (urlTarget) {
     return urlTarget;
   }
 
+  if (!debugMode) {
+    return null;
+  }
+
   const picked = await promptModelSelection(getScanPickerModels(), {
     title: "Select tracking image",
-    showIds: isDebugMode(window.location.search)
+    showIds: true
   });
 
   if (!picked) {
