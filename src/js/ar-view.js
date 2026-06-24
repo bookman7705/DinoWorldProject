@@ -123,22 +123,79 @@ controller.addEventListener("select", () => {
   model.visible = true;
   placed = true;
   updateScaleDisplay();
-  statusEl.textContent = "Model placed. Drag to move, pinch to scale, twist to rotate.";
+  statusEl.textContent = "Model placed. Swipe to move, pinch to scale, twist to rotate.";
 });
 scene.add(controller);
 
 const worldUp = new THREE.Vector3(0, 1, 0);
+const cameraDirection = new THREE.Vector3();
+const cameraWorldPos = new THREE.Vector3();
+const rightVector = new THREE.Vector3();
+const forwardVector = new THREE.Vector3();
 const tmpMatrix = new THREE.Matrix4();
 const tmpPosition = new THREE.Vector3();
 const tmpQuaternion = new THREE.Quaternion();
 const tmpScale = new THREE.Vector3();
 const tmpNormal = new THREE.Vector3();
+
+const DRAG_DEAD_ZONE_PX = 12;
+const ROTATE_DEAD_ZONE_RAD = 0.04;
+const SCALE_DEAD_ZONE_RATIO = 0.015;
+const DRAG_SENSITIVITY = 0.0035;
+const PLANE_SNAP_XZ_RADIUS = 0.85;
+
 const gesture = {
-  dragging: false,
-  scalingRotating: false,
+  singleTouch: false,
+  twoFinger: false,
+  moving: false,
+  scaling: false,
+  rotating: false,
+  startScreenX: 0,
+  startScreenY: 0,
+  lastScreenX: 0,
+  lastScreenY: 0,
+  dragAccumPx: 0,
   lastDistance: 0,
   lastAngle: 0
 };
+
+function getActiveCamera() {
+  return renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
+}
+
+function resetSingleTouchGesture(touch) {
+  gesture.singleTouch = true;
+  gesture.moving = false;
+  gesture.dragAccumPx = 0;
+  gesture.startScreenX = touch.pageX;
+  gesture.startScreenY = touch.pageY;
+  gesture.lastScreenX = touch.pageX;
+  gesture.lastScreenY = touch.pageY;
+}
+
+function resetTwoFingerGesture(touches) {
+  const metrics = getTouchMetrics(touches);
+  gesture.twoFinger = true;
+  gesture.singleTouch = false;
+  gesture.moving = false;
+  gesture.scaling = false;
+  gesture.rotating = false;
+  gesture.lastDistance = metrics.distance;
+  gesture.lastAngle = metrics.angle;
+}
+
+function clearGestureState() {
+  gesture.singleTouch = false;
+  gesture.twoFinger = false;
+  gesture.moving = false;
+  gesture.scaling = false;
+  gesture.rotating = false;
+  gesture.dragAccumPx = 0;
+}
+
+function movementBlocked() {
+  return gesture.twoFinger || gesture.scaling || gesture.rotating;
+}
 
 function getTouchMetrics(touches) {
   const dx = touches[0].pageX - touches[1].pageX;
@@ -169,23 +226,93 @@ function applyPoseToModel(matrix) {
   model.rotation.z = 0;
 }
 
+function translateModelByScreenDelta(dx, dy) {
+  const cam = getActiveCamera();
+  cam.getWorldPosition(cameraWorldPos);
+  cam.getWorldDirection(cameraDirection);
+  cameraDirection.y = 0;
+
+  if (cameraDirection.lengthSq() < 1e-6) {
+    return;
+  }
+
+  cameraDirection.normalize();
+  rightVector.crossVectors(worldUp, cameraDirection).normalize();
+  forwardVector.crossVectors(rightVector, worldUp).normalize();
+
+  const distance = cameraWorldPos.distanceTo(model.position);
+  const moveScale = Math.max(0.001, distance * DRAG_SENSITIVITY);
+
+  model.position.addScaledVector(rightVector, dx * moveScale);
+  model.position.addScaledVector(forwardVector, -dy * moveScale);
+}
+
+function considerHorizontalHit(pose, modelPos, state) {
+  if (!pose) {
+    return;
+  }
+
+  tmpMatrix.fromArray(pose.transform.matrix);
+  if (!isHorizontalPoseFromMatrix(tmpMatrix)) {
+    return;
+  }
+
+  tmpMatrix.decompose(tmpPosition, tmpQuaternion, tmpScale);
+  const dx = tmpPosition.x - modelPos.x;
+  const dz = tmpPosition.z - modelPos.z;
+  const distSq = dx * dx + dz * dz;
+  const maxDistSq = PLANE_SNAP_XZ_RADIUS * PLANE_SNAP_XZ_RADIUS;
+
+  if (distSq <= maxDistSq && distSq < state.bestDistSq) {
+    state.bestDistSq = distSq;
+    state.bestY = tmpPosition.y;
+  }
+}
+
+function correctModelElevation(frame, localSpace) {
+  if (!placed || !model || !gesture.moving || !localSpace) {
+    return;
+  }
+
+  const state = { bestY: null, bestDistSq: PLANE_SNAP_XZ_RADIUS * PLANE_SNAP_XZ_RADIUS };
+  const modelPos = model.position;
+
+  if (hitTestSource) {
+    for (const hit of frame.getHitTestResults(hitTestSource)) {
+      considerHorizontalHit(hit.getPose(localSpace), modelPos, state);
+    }
+  }
+
+  if (transientHitTestSource) {
+    const transientResults = frame.getHitTestResultsForTransientInput(transientHitTestSource);
+    for (const result of transientResults) {
+      for (const hit of result.results) {
+        considerHorizontalHit(hit.getPose(localSpace), modelPos, state);
+      }
+    }
+  }
+
+  if (state.bestY !== null) {
+    model.position.y = state.bestY;
+  }
+}
+
 window.addEventListener(
   "touchstart",
   (event) => {
-    if (!placed || !model) return;
-
-    if (event.touches.length === 1) {
-      gesture.dragging = true;
-      gesture.scalingRotating = false;
+    if (!placed || !model) {
       return;
     }
 
-    if (event.touches.length === 2) {
-      const metrics = getTouchMetrics(event.touches);
-      gesture.dragging = false;
-      gesture.scalingRotating = true;
-      gesture.lastDistance = metrics.distance;
-      gesture.lastAngle = metrics.angle;
+    if (event.touches.length === 1) {
+      if (!gesture.twoFinger) {
+        resetSingleTouchGesture(event.touches[0]);
+      }
+      return;
+    }
+
+    if (event.touches.length >= 2) {
+      resetTwoFingerGesture(event.touches);
       event.preventDefault();
     }
   },
@@ -195,34 +322,98 @@ window.addEventListener(
 window.addEventListener(
   "touchmove",
   (event) => {
-    if (!placed || !model) return;
+    if (!placed || !model) {
+      return;
+    }
 
-    if (event.touches.length !== 2 || !gesture.scalingRotating) return;
+    if (event.touches.length >= 2) {
+      event.preventDefault();
+
+      if (!gesture.twoFinger) {
+        resetTwoFingerGesture(event.touches);
+      }
+
+      const metrics = getTouchMetrics(event.touches);
+      const scaleFactor = metrics.distance / Math.max(gesture.lastDistance, 1);
+      const angleDelta = normalizeAngle(metrics.angle - gesture.lastAngle);
+
+      if (Math.abs(scaleFactor - 1) > SCALE_DEAD_ZONE_RATIO) {
+        gesture.scaling = true;
+      }
+
+      if (Math.abs(angleDelta) > ROTATE_DEAD_ZONE_RAD) {
+        gesture.rotating = true;
+      }
+
+      if (gesture.scaling) {
+        const nextScale = THREE.MathUtils.clamp(model.scale.x * scaleFactor, 0.04, 2.5);
+        model.scale.setScalar(nextScale);
+        updateScaleDisplay();
+      }
+
+      if (gesture.rotating) {
+        model.rotation.y -= angleDelta;
+      }
+
+      gesture.lastDistance = metrics.distance;
+      gesture.lastAngle = metrics.angle;
+      return;
+    }
+
+    if (event.touches.length !== 1 || !gesture.singleTouch || movementBlocked()) {
+      return;
+    }
+
+    const touch = event.touches[0];
+    const dx = touch.pageX - gesture.lastScreenX;
+    const dy = touch.pageY - gesture.lastScreenY;
+
+    if (dx === 0 && dy === 0) {
+      return;
+    }
+
+    gesture.dragAccumPx += Math.hypot(dx, dy);
+
+    if (!gesture.moving) {
+      if (gesture.dragAccumPx < DRAG_DEAD_ZONE_PX) {
+        return;
+      }
+      gesture.moving = true;
+    }
+
     event.preventDefault();
-
-    const metrics = getTouchMetrics(event.touches);
-    const scaleFactor = metrics.distance / Math.max(gesture.lastDistance, 1);
-    const nextScale = THREE.MathUtils.clamp(model.scale.x * scaleFactor, 0.04, 2.5);
-    model.scale.setScalar(nextScale);
-    updateScaleDisplay();
-
-    const angleDelta = normalizeAngle(metrics.angle - gesture.lastAngle);
-    model.rotation.y -= angleDelta;
-
-    gesture.lastDistance = metrics.distance;
-    gesture.lastAngle = metrics.angle;
+    translateModelByScreenDelta(dx, dy);
+    gesture.lastScreenX = touch.pageX;
+    gesture.lastScreenY = touch.pageY;
   },
   { passive: false }
 );
 
-window.addEventListener("touchend", () => {
-  gesture.dragging = false;
-  gesture.scalingRotating = false;
-});
-window.addEventListener("touchcancel", () => {
-  gesture.dragging = false;
-  gesture.scalingRotating = false;
-});
+function handleTouchEnd(event) {
+  if (!placed || !model) {
+    return;
+  }
+
+  if (event.touches.length === 0) {
+    clearGestureState();
+    return;
+  }
+
+  if (event.touches.length === 1) {
+    gesture.twoFinger = false;
+    gesture.scaling = false;
+    gesture.rotating = false;
+    resetSingleTouchGesture(event.touches[0]);
+    return;
+  }
+
+  if (event.touches.length >= 2) {
+    resetTwoFingerGesture(event.touches);
+  }
+}
+
+window.addEventListener("touchend", handleTouchEnd);
+window.addEventListener("touchcancel", handleTouchEnd);
 
 let viewerSpace = null;
 let localSpace = null;
@@ -293,34 +484,7 @@ renderer.setAnimationLoop((_, frame) => {
         }
       }
 
-      if (placed && gesture.dragging) {
-        let dragPose = null;
-
-        if (transientHitTestSource) {
-          const transientResults = frame.getHitTestResultsForTransientInput(transientHitTestSource);
-          for (const result of transientResults) {
-            for (const hit of result.results) {
-              const pose = hit.getPose(localSpace);
-              if (!pose) continue;
-              tmpMatrix.fromArray(pose.transform.matrix);
-              if (isHorizontalPoseFromMatrix(tmpMatrix)) {
-                dragPose = pose;
-                break;
-              }
-            }
-            if (dragPose) break;
-          }
-        }
-
-        if (!dragPose && horizontalPose) {
-          dragPose = horizontalPose;
-        }
-
-        if (dragPose) {
-          tmpMatrix.fromArray(dragPose.transform.matrix);
-          applyPoseToModel(tmpMatrix);
-        }
-      }
+      correctModelElevation(frame, localSpace);
     }
   }
 
