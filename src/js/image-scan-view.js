@@ -2,12 +2,15 @@ import * as THREE from "three";
 import { MindARThree } from "mindar-image-three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone as cloneSkinnedScene } from "three/addons/utils/SkeletonUtils.js";
-import { MODEL_REGISTRY } from "./model-registry.js";
+import { MODEL_REGISTRY, getModelFromQuery } from "./model-registry.js";
 import {
-  COMBINED_MIND_URL,
+  getImageScanTarget,
+  imageScanMindUrl,
   IMAGE_SCAN_TARGETS,
   resolveImageScanModelScale
 } from "./image-scan-registry.js";
+import { isDebugMode } from "./debug.js";
+import { promptModelSelection } from "./model-picker.js";
 import { loadGltf } from "./gltf-loader.js";
 import { configureGltfMaterials, configureGltfRenderer } from "./gltf-materials.js";
 import { playModelAnimation } from "./gltf-animations.js";
@@ -21,10 +24,6 @@ const scanHint = document.getElementById("scan-hint");
 
 const loader = new GLTFLoader();
 const clock = new THREE.Clock();
-const modelCache = {};
-
-/** @type {Map<number, { target: object, anchor: object }>} */
-const anchorBindings = new Map();
 
 let mindarThree = null;
 let renderer = null;
@@ -33,7 +32,8 @@ let camera = null;
 let mixer = null;
 let activeTarget = null;
 let activeModel = null;
-let activeAnchor = null;
+let anchor = null;
+let cachedModel = null;
 let sessionRunning = false;
 
 menuBackBtn.addEventListener("click", () => {
@@ -48,7 +48,13 @@ scanBackBtn.addEventListener("click", async () => {
 startScanBtn.addEventListener("click", async () => {
   startScanBtn.disabled = true;
   try {
-    await startScanSession();
+    const target = await resolveScanTarget();
+    if (!target) {
+      startScanBtn.disabled = false;
+      return;
+    }
+
+    await startScanSession(target);
   } catch (error) {
     console.error(error);
     setHint("Could not start. Allow camera access and try again.", "scanning");
@@ -94,6 +100,29 @@ function setHint(message, tone = "scanning") {
   scanHint.classList.add(tone === "found" ? "scan-hint--found" : "scan-hint--scanning");
 }
 
+function getScanPickerModels() {
+  return IMAGE_SCAN_TARGETS.map((target) => MODEL_REGISTRY[target.id]).filter(Boolean);
+}
+
+async function resolveScanTarget() {
+  const fromUrl = getModelFromQuery(window.location.search);
+  const urlTarget = getImageScanTarget(fromUrl.id);
+  if (urlTarget) {
+    return urlTarget;
+  }
+
+  const picked = await promptModelSelection(getScanPickerModels(), {
+    title: "Select tracking image",
+    showIds: isDebugMode(window.location.search)
+  });
+
+  if (!picked) {
+    return null;
+  }
+
+  return getImageScanTarget(picked.id);
+}
+
 function loadGltfAsync(modelFile) {
   return new Promise((resolve, reject) => {
     loadGltf(loader, modelFile, {
@@ -103,31 +132,21 @@ function loadGltfAsync(modelFile) {
   });
 }
 
-async function preloadModels(onProgress) {
-  const ids = [...new Set(IMAGE_SCAN_TARGETS.map((target) => target.id))];
-  let loaded = 0;
+async function preloadModel(target) {
+  const entry = MODEL_REGISTRY[target.id];
+  if (!entry?.modelFile) {
+    throw new Error(`No model file configured for image-scan id "${target.id}"`);
+  }
 
-  await Promise.all(
-    ids.map(async (id) => {
-      const entry = MODEL_REGISTRY[id];
-      if (!entry?.modelFile) {
-        throw new Error(`No model file configured for image-scan id "${id}"`);
-      }
-
-      const gltf = await loadGltfAsync(entry.modelFile);
-      configureGltfMaterials(gltf.scene);
-      modelCache[id] = { scene: gltf.scene, animations: gltf.animations };
-
-      loaded += 1;
-      onProgress?.(loaded, ids.length);
-    })
-  );
+  const gltf = await loadGltfAsync(entry.modelFile);
+  configureGltfMaterials(gltf.scene);
+  cachedModel = { scene: gltf.scene, animations: gltf.animations };
 }
 
-function setupMindAR() {
+function setupMindAR(target) {
   mindarThree = new MindARThree({
     container: mindarContainer,
-    imageTargetSrc: COMBINED_MIND_URL,
+    imageTargetSrc: imageScanMindUrl(target),
     maxTrack: 1,
     uiLoading: "no",
     uiScanning: "no",
@@ -144,26 +163,21 @@ function setupMindAR() {
   dirLight.position.set(0, 5, 5);
   scene.add(dirLight);
 
-  for (const target of IMAGE_SCAN_TARGETS) {
-    const anchor = mindarThree.addAnchor(target.targetIndex);
-    anchor.onTargetFound = () => onTargetFound(target);
-    anchor.onTargetLost = () => onTargetLost(target);
-    anchorBindings.set(target.targetIndex, { target, anchor });
-  }
+  anchor = mindarThree.addAnchor(0);
+  anchor.onTargetFound = () => onTargetFound(target);
+  anchor.onTargetLost = () => onTargetLost(target);
 }
 
-async function startScanSession() {
+async function startScanSession(target) {
   if (mindarThree) {
     await disposeScanSession();
   }
 
-  setupMindAR();
+  setupMindAR(target);
   showScanner();
-  setHint("Loading models…", "scanning");
+  setHint("Loading model…", "scanning");
 
-  await preloadModels((loaded, total) => {
-    setHint(`Loading models… ${loaded}/${total}`, "scanning");
-  });
+  await preloadModel(target);
 
   setHint("Starting camera…", "scanning");
   await mindarThree.start();
@@ -199,13 +213,12 @@ function clearActiveModel() {
   mixer?.stopAllAction();
   mixer = null;
 
-  if (activeModel && activeAnchor) {
-    activeAnchor.group.remove(activeModel);
+  if (activeModel && anchor) {
+    anchor.group.remove(activeModel);
     disposeMeshes(activeModel);
   }
 
   activeModel = null;
-  activeAnchor = null;
 }
 
 async function disposeScanSession() {
@@ -231,21 +244,19 @@ async function disposeScanSession() {
   renderer?.domElement?.remove();
   mindarThree?.cssRenderer?.domElement?.remove();
 
-  for (const binding of anchorBindings.values()) {
-    binding.anchor.onTargetFound = null;
-    binding.anchor.onTargetLost = null;
-    binding.anchor.group.clear();
+  if (anchor) {
+    anchor.onTargetFound = null;
+    anchor.onTargetLost = null;
+    anchor.group.clear();
+    anchor = null;
   }
-  anchorBindings.clear();
 
   mindarContainer.replaceChildren();
   renderer?.dispose();
 
-  for (const cached of Object.values(modelCache)) {
-    disposeMeshes(cached.scene);
-  }
-  for (const key of Object.keys(modelCache)) {
-    delete modelCache[key];
+  if (cachedModel) {
+    disposeMeshes(cachedModel.scene);
+    cachedModel = null;
   }
 
   mindarThree = null;
@@ -255,33 +266,29 @@ async function disposeScanSession() {
 }
 
 function onTargetFound(target) {
-  if (!sessionRunning || activeTarget) {
+  if (!sessionRunning || activeTarget || !cachedModel || !anchor) {
     return;
   }
 
-  const binding = anchorBindings.get(target.targetIndex);
-  const cached = modelCache[target.id];
   const registryEntry = MODEL_REGISTRY[target.id];
-
-  if (!binding || !cached || !registryEntry) {
+  if (!registryEntry) {
     return;
   }
 
   activeTarget = target.id;
 
-  const model = cloneSkinnedScene(cached.scene);
+  const model = cloneSkinnedScene(cachedModel.scene);
   const [scaleX, scaleY, scaleZ] = resolveImageScanModelScale(target, registryEntry);
   model.scale.set(scaleX, scaleY, scaleZ);
   model.rotation.set(...target.modelRotation);
   model.position.set(...target.modelPosition);
 
-  binding.anchor.group.add(model);
+  anchor.group.add(model);
   activeModel = model;
-  activeAnchor = binding.anchor;
 
-  if (cached.animations.length > 0) {
+  if (cachedModel.animations.length > 0) {
     mixer = new THREE.AnimationMixer(model);
-    playModelAnimation(mixer, cached.animations, registryEntry.animation);
+    playModelAnimation(mixer, cachedModel.animations, registryEntry.animation);
   }
 
   setHint("", "scanning");

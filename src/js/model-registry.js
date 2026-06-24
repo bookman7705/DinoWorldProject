@@ -14,7 +14,7 @@ export const MODEL_REGISTRY = {
     description: "Large ground predator model for AR placement tests.",
     modelFile: "rex.glb",
     iosFile: "rex.usdz",
-    defaultScale: 0.25,
+    defaultScale: 1.0,
     //animation: "Idle_01",
     view3d: {
       position: [0, -0, -0],
@@ -34,13 +34,13 @@ export const MODEL_REGISTRY = {
       }
     }
   },
-  mosasaurus: {
-    id: "mosasaurus",
+  mosa: {
+    id: "MOSA",
     label: "Mosasaurus",
     description: "Large marine reptile model for AR and 3D view placement tests.",
     modelFile: "mosasaurus.glb",
     iosFile: "mosasaurus.usdz",
-    defaultScale: 0.25,
+    defaultScale: 1.0,
     view3d: {
       position: [0, 0, 0],
       scale: [6, 6, 6],
@@ -61,7 +61,7 @@ export const MODEL_REGISTRY = {
     description: "Fast predator model for AR and 3D view placement tests.",
     modelFile: "raptor.glb",
     iosFile: "raptor.usdz",
-    defaultScale: 0.25,
+    defaultScale: 1.0,
     animation: "Idle_01",
     view3d: {
       position: [0, 0, 0],
@@ -77,13 +77,13 @@ export const MODEL_REGISTRY = {
       }
     }
   },
-  brachiosaur: {
-    id: "brachiosaur",
-    label: "Brachiosaurus",
+  bron: {
+    id: "BRON",
+    label: "Brontosaurus",
     description: "Long-necked sauropod model for AR and 3D view placement tests.",
-    modelFile: "Brachiosaur.glb",
-    iosFile: "Brachiosaur.usdz",
-    defaultScale: 0.25,
+    modelFile: "brontosaurus.glb",
+    iosFile: "brontosaurus.usdz",
+    defaultScale: 1.0,
     view3d: {
       position: [0, 0, 0],
       scale: [3, 3, 3],
@@ -98,13 +98,13 @@ export const MODEL_REGISTRY = {
       }
     }
   },
-  triceratop: {
-    id: "triceratop",
+  tric: {
+    id: "TRIC",
     label: "Triceratops",
     description: "Three-horned herbivore model for AR and 3D view placement tests.",
     modelFile: "Triceratop.glb",
     iosFile: "Triceratop.usdz",
-    defaultScale: 0.25,
+    defaultScale: 1.0,
     view3d: {
       position: [0, 0, 0],
       scale: [4, 4, 4],
@@ -119,13 +119,13 @@ export const MODEL_REGISTRY = {
       }
     }
   },
-  pachycephalasaurus: {
-    id: "pachycephalasaurus",
+  pach: {
+    id: "PACH",
     label: "Pachycephalosaurus",
     description: "Dome-headed herbivore model for AR and 3D view placement tests.",
     modelFile: "pachycephalasaurus.glb",
     iosFile: "pachycephalasaurus.usdz",
-    defaultScale: 0.25,
+    defaultScale: 1.0,
     view3d: {
       position: [0, 0, 0],
       scale: [3, 3, 3],
@@ -140,13 +140,13 @@ export const MODEL_REGISTRY = {
       }
     }
   },
-  stegasaurus: {
-    id: "stegasaurus",
+  stega: {
+    id: "STEGA",
     label: "Stegosaurus",
     description: "Plated herbivore model for AR and 3D view placement tests.",
     modelFile: "stegasaurus.glb",
     iosFile: "stegasaurus.usdz",
-    defaultScale: 0.25,
+    defaultScale: 1.0,
     view3d: {
       position: [0, 0, 0],
       scale: [5, 5, 5],
@@ -161,13 +161,13 @@ export const MODEL_REGISTRY = {
       }
     }
   },
-  stygimoloch: {
-    id: "stygimoloch",
+  styg: {
+    id: "STYG",
     label: "Stygimoloch",
     description: "Small dome-headed herbivore model for AR and 3D view placement tests.",
     modelFile: "stygimoloch.glb",
     iosFile: "stygimoloch.usdz",
-    defaultScale: 0.3,
+    defaultScale: 1.0,
     view3d: {
       position: [0, 0, 0],
       scale: [2, 2, 2],

@@ -1,7 +1,7 @@
 /**
  * Modal model picker used in debug mode when launching a view without a QR code id.
  */
-export function promptModelSelection(models, { title = "Select a model" } = {}) {
+export function promptModelSelection(models, { title = "Select a model", showIds = false } = {}) {
   if (!models.length) {
     return Promise.resolve(null);
   }
@@ -39,7 +39,10 @@ export function promptModelSelection(models, { title = "Select a model" } = {}) 
       const button = document.createElement("button");
       button.type = "button";
       button.className = "model-picker-option";
-      button.innerHTML = `<span class="model-picker-option-label">${model.label}</span><span class="model-picker-option-id">${model.id}</span>`;
+      const idMarkup = showIds
+        ? `<span class="model-picker-option-id">${model.id}</span>`
+        : "";
+      button.innerHTML = `<span class="model-picker-option-label">${model.label}</span>${idMarkup}`;
       button.addEventListener("click", () => cleanup(model));
       list.appendChild(button);
     }

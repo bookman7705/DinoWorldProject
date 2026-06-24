@@ -17,6 +17,8 @@ function launchImageScan({ replace = false } = {}) {
   const url = new URL("./image-scan.html", window.location.href);
   if (isDebugMode(window.location.search)) {
     url.searchParams.set("debug", "1");
+  } else if (selected.hasValidId) {
+    url.searchParams.set("id", selected.entry.id);
   }
   if (replace) {
     window.location.replace(url.toString());
@@ -42,8 +44,10 @@ function stripModelIdFromDebugUrl() {
 }
 
 async function resolveModelEntry({ promptWhenMissing = false } = {}) {
-  if (isDebugMode(window.location.search)) {
-    return promptModelSelection(getAvailableModels());
+  const debug = isDebugMode(window.location.search);
+
+  if (debug) {
+    return promptModelSelection(getAvailableModels(), { showIds: true });
   }
 
   const current = getModelFromQuery(window.location.search);
@@ -52,7 +56,7 @@ async function resolveModelEntry({ promptWhenMissing = false } = {}) {
   }
 
   if (promptWhenMissing) {
-    return promptModelSelection(getAvailableModels());
+    return promptModelSelection(getAvailableModels(), { showIds: false });
   }
 
   return null;
@@ -77,7 +81,7 @@ if (selected.id === "scan") {
     window.addEventListener("pageshow", stripModelIdFromDebugUrl);
   } else if (!selected.hasValidId) {
     modelInfoEl.textContent =
-      "No dinosaur selected yet. Tap 3D View to choose one, or scan a QR code like ?id=rex.";
+      "No dinosaur selected yet. Tap 3D View to choose one, or scan a QR code like ?id=MOSA.";
     viewArBtn.disabled = true;
     viewArBtn.style.opacity = "0.6";
   } else {
