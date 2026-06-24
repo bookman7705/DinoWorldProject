@@ -118,23 +118,25 @@ document.body.appendChild(
 
 const controller = renderer.xr.getController(0);
 controller.addEventListener("select", () => {
-  if (!model || !reticle.visible) {
+  if (!modelRoot || placed || !reticle.visible) {
     return;
   }
 
   applyPoseToModel(reticle.matrix);
   modelRoot.visible = true;
   placed = true;
+  reticle.visible = false;
   updateScaleDisplay();
   statusEl.textContent = "Model placed. Swipe to move, pinch to scale, twist to rotate.";
 });
 scene.add(controller);
 
 const worldUp = new THREE.Vector3(0, 1, 0);
-const cameraDirection = new THREE.Vector3();
-const cameraWorldPos = new THREE.Vector3();
-const rightVector = new THREE.Vector3();
-const forwardVector = new THREE.Vector3();
+const dragRaycaster = new THREE.Raycaster();
+const dragNdc = new THREE.Vector2();
+const dragPlane = new THREE.Plane();
+const dragWorldPoint = new THREE.Vector3();
+const dragWorldDelta = new THREE.Vector3();
 const tmpMatrix = new THREE.Matrix4();
 const tmpPosition = new THREE.Vector3();
 const tmpQuaternion = new THREE.Quaternion();
@@ -144,7 +146,6 @@ const tmpNormal = new THREE.Vector3();
 const DRAG_DEAD_ZONE_PX = 12;
 const ROTATE_DEAD_ZONE_RAD = 0.04;
 const SCALE_DEAD_ZONE_RATIO = 0.015;
-const DRAG_SENSITIVITY = 0.0035;
 const PLANE_SNAP_XZ_RADIUS = 0.85;
 
 const gesture = {
@@ -159,7 +160,11 @@ const gesture = {
   lastScreenY: 0,
   dragAccumPx: 0,
   lastDistance: 0,
-  lastAngle: 0
+  lastAngle: 0,
+  hasDragWorldAnchor: false,
+  lastDragWorldX: 0,
+  lastDragWorldY: 0,
+  lastDragWorldZ: 0
 };
 
 function getActiveCamera() {
@@ -170,6 +175,7 @@ function resetSingleTouchGesture(touch) {
   gesture.singleTouch = true;
   gesture.moving = false;
   gesture.dragAccumPx = 0;
+  gesture.hasDragWorldAnchor = false;
   gesture.startScreenX = touch.pageX;
   gesture.startScreenY = touch.pageY;
   gesture.lastScreenX = touch.pageX;
@@ -194,6 +200,7 @@ function clearGestureState() {
   gesture.scaling = false;
   gesture.rotating = false;
   gesture.dragAccumPx = 0;
+  gesture.hasDragWorldAnchor = false;
 }
 
 function movementBlocked() {
@@ -229,25 +236,41 @@ function applyPoseToModel(matrix) {
   modelRoot.rotation.z = 0;
 }
 
-function translateModelByScreenDelta(dx, dy) {
+function screenPointToWorldOnPlane(screenX, screenY, planeY, out) {
   const cam = getActiveCamera();
-  cam.getWorldPosition(cameraWorldPos);
-  cam.getWorldDirection(cameraDirection);
-  cameraDirection.y = 0;
+  const canvas = renderer.domElement;
+  const width = canvas.clientWidth || window.innerWidth;
+  const height = canvas.clientHeight || window.innerHeight;
 
-  if (cameraDirection.lengthSq() < 1e-6) {
+  dragNdc.set((screenX / width) * 2 - 1, -(screenY / height) * 2 + 1);
+  dragRaycaster.setFromCamera(dragNdc, cam);
+  dragPlane.set(worldUp, -planeY);
+  return dragRaycaster.ray.intersectPlane(dragPlane, out) !== null;
+}
+
+function translateModelByScreenPoint(screenX, screenY) {
+  if (!screenPointToWorldOnPlane(screenX, screenY, modelRoot.position.y, dragWorldPoint)) {
     return;
   }
 
-  cameraDirection.normalize();
-  rightVector.crossVectors(worldUp, cameraDirection).normalize();
-  forwardVector.crossVectors(rightVector, worldUp).normalize();
+  if (!gesture.hasDragWorldAnchor) {
+    gesture.lastDragWorldX = dragWorldPoint.x;
+    gesture.lastDragWorldY = dragWorldPoint.y;
+    gesture.lastDragWorldZ = dragWorldPoint.z;
+    gesture.hasDragWorldAnchor = true;
+    return;
+  }
 
-  const distance = cameraWorldPos.distanceTo(modelRoot.position);
-  const moveScale = Math.max(0.001, distance * DRAG_SENSITIVITY);
+  dragWorldDelta.set(
+    dragWorldPoint.x - gesture.lastDragWorldX,
+    dragWorldPoint.y - gesture.lastDragWorldY,
+    dragWorldPoint.z - gesture.lastDragWorldZ
+  );
+  modelRoot.position.add(dragWorldDelta);
 
-  modelRoot.position.addScaledVector(rightVector, -dx * moveScale);
-  modelRoot.position.addScaledVector(forwardVector, -dy * moveScale);
+  gesture.lastDragWorldX = dragWorldPoint.x;
+  gesture.lastDragWorldY = dragWorldPoint.y;
+  gesture.lastDragWorldZ = dragWorldPoint.z;
 }
 
 function considerHorizontalHit(pose, modelPos, state) {
@@ -382,10 +405,11 @@ window.addEventListener(
         return;
       }
       gesture.moving = true;
+      gesture.hasDragWorldAnchor = false;
     }
 
     event.preventDefault();
-    translateModelByScreenDelta(dx, dy);
+    translateModelByScreenPoint(touch.pageX, touch.pageY);
     gesture.lastScreenX = touch.pageX;
     gesture.lastScreenY = touch.pageY;
   },
@@ -485,6 +509,8 @@ renderer.setAnimationLoop((_, frame) => {
         } else {
           reticle.visible = false;
         }
+      } else {
+        reticle.visible = false;
       }
 
       correctModelElevation(frame, localSpace);
