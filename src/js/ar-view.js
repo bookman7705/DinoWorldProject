@@ -68,17 +68,18 @@ const debugMaterials = new URLSearchParams(window.location.search).get("debugMat
 
 const loader = new GLTFLoader();
 const clock = new THREE.Clock();
+let modelRoot = null;
 let model = null;
 let mixer = null;
 let placed = false;
 let baseScale = 0.1;
 
 function updateScaleDisplay() {
-  if (!model || !placed || !scaleEl) {
+  if (!modelRoot || !placed || !scaleEl) {
     return;
   }
 
-  const percent = Math.round((model.scale.x / baseScale) * 100);
+  const percent = Math.round((modelRoot.scale.x / baseScale) * 100);
   scaleEl.textContent = `Scale: ${percent}%`;
   scaleEl.hidden = false;
 }
@@ -86,12 +87,14 @@ function updateScaleDisplay() {
 statusEl.textContent = "Loading model...";
 loadGltf(loader, selection.entry.modelFile, {
   onLoad: (gltf) => {
+    modelRoot = new THREE.Group();
     model = gltf.scene;
     configureGltfMaterials(model, { debug: debugMaterials });
     baseScale = selection.entry.defaultScale || 0.1;
-    model.scale.set(baseScale, baseScale, baseScale);
-    model.visible = false;
-    scene.add(model);
+    modelRoot.scale.set(baseScale, baseScale, baseScale);
+    modelRoot.visible = false;
+    modelRoot.add(model);
+    scene.add(modelRoot);
 
     if (gltf.animations.length > 0) {
       mixer = new THREE.AnimationMixer(model);
@@ -120,7 +123,7 @@ controller.addEventListener("select", () => {
   }
 
   applyPoseToModel(reticle.matrix);
-  model.visible = true;
+  modelRoot.visible = true;
   placed = true;
   updateScaleDisplay();
   statusEl.textContent = "Model placed. Swipe to move, pinch to scale, twist to rotate.";
@@ -221,9 +224,9 @@ function isHorizontalPoseFromMatrix(matrix) {
 
 function applyPoseToModel(matrix) {
   matrix.decompose(tmpPosition, tmpQuaternion, tmpScale);
-  model.position.copy(tmpPosition);
-  model.rotation.x = 0;
-  model.rotation.z = 0;
+  modelRoot.position.copy(tmpPosition);
+  modelRoot.rotation.x = 0;
+  modelRoot.rotation.z = 0;
 }
 
 function translateModelByScreenDelta(dx, dy) {
@@ -240,11 +243,11 @@ function translateModelByScreenDelta(dx, dy) {
   rightVector.crossVectors(worldUp, cameraDirection).normalize();
   forwardVector.crossVectors(rightVector, worldUp).normalize();
 
-  const distance = cameraWorldPos.distanceTo(model.position);
+  const distance = cameraWorldPos.distanceTo(modelRoot.position);
   const moveScale = Math.max(0.001, distance * DRAG_SENSITIVITY);
 
-  model.position.addScaledVector(rightVector, dx * moveScale);
-  model.position.addScaledVector(forwardVector, -dy * moveScale);
+  modelRoot.position.addScaledVector(rightVector, -dx * moveScale);
+  modelRoot.position.addScaledVector(forwardVector, -dy * moveScale);
 }
 
 function considerHorizontalHit(pose, modelPos, state) {
@@ -275,7 +278,7 @@ function correctModelElevation(frame, localSpace) {
   }
 
   const state = { bestY: null, bestDistSq: PLANE_SNAP_XZ_RADIUS * PLANE_SNAP_XZ_RADIUS };
-  const modelPos = model.position;
+  const modelPos = modelRoot.position;
 
   if (hitTestSource) {
     for (const hit of frame.getHitTestResults(hitTestSource)) {
@@ -293,7 +296,7 @@ function correctModelElevation(frame, localSpace) {
   }
 
   if (state.bestY !== null) {
-    model.position.y = state.bestY;
+    modelRoot.position.y = state.bestY;
   }
 }
 
@@ -346,13 +349,13 @@ window.addEventListener(
       }
 
       if (gesture.scaling) {
-        const nextScale = THREE.MathUtils.clamp(model.scale.x * scaleFactor, 0.04, 2.5);
-        model.scale.setScalar(nextScale);
+        const nextScale = THREE.MathUtils.clamp(modelRoot.scale.x * scaleFactor, 0.04, 10);
+        modelRoot.scale.setScalar(nextScale);
         updateScaleDisplay();
       }
 
       if (gesture.rotating) {
-        model.rotation.y -= angleDelta;
+        modelRoot.rotation.y -= angleDelta;
       }
 
       gesture.lastDistance = metrics.distance;
