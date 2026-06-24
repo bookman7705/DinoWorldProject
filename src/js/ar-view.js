@@ -14,6 +14,7 @@ import {
 const statusEl = document.getElementById("ar-status");
 const helpEl = document.getElementById("ar-help");
 const titleEl = document.getElementById("ar-model-name");
+const scaleEl = document.getElementById("ar-scale");
 const backBtn = document.getElementById("back-btn");
 
 backBtn.addEventListener("click", () => {
@@ -22,7 +23,7 @@ backBtn.addEventListener("click", () => {
 
 const selection = getModelFromQuery(window.location.search);
 if (!selection.entry) {
-  statusEl.textContent = `Invalid model ID "${selection.id || ""}". Use a valid id like ?id=allosaurus.`;
+  statusEl.textContent = `Invalid model ID "${selection.id || ""}". Use a valid id like ?id=rex.`;
   helpEl.textContent = "";
   throw new Error("Invalid model id");
 }
@@ -70,14 +71,25 @@ const clock = new THREE.Clock();
 let model = null;
 let mixer = null;
 let placed = false;
+let baseScale = 0.1;
+
+function updateScaleDisplay() {
+  if (!model || !placed || !scaleEl) {
+    return;
+  }
+
+  const percent = Math.round((model.scale.x / baseScale) * 100);
+  scaleEl.textContent = `Scale: ${percent}%`;
+  scaleEl.hidden = false;
+}
 
 statusEl.textContent = "Loading model...";
 loadGltf(loader, selection.entry.modelFile, {
   onLoad: (gltf) => {
     model = gltf.scene;
     configureGltfMaterials(model, { debug: debugMaterials });
-    const scale = selection.entry.defaultScale || 0.1;
-    model.scale.set(scale, scale, scale);
+    baseScale = selection.entry.defaultScale || 0.1;
+    model.scale.set(baseScale, baseScale, baseScale);
     model.visible = false;
     scene.add(model);
 
@@ -110,6 +122,7 @@ controller.addEventListener("select", () => {
   applyPoseToModel(reticle.matrix);
   model.visible = true;
   placed = true;
+  updateScaleDisplay();
   statusEl.textContent = "Model placed. Drag to move, pinch to scale, twist to rotate.";
 });
 scene.add(controller);
@@ -191,6 +204,7 @@ window.addEventListener(
     const scaleFactor = metrics.distance / Math.max(gesture.lastDistance, 1);
     const nextScale = THREE.MathUtils.clamp(model.scale.x * scaleFactor, 0.04, 2.5);
     model.scale.setScalar(nextScale);
+    updateScaleDisplay();
 
     const angleDelta = normalizeAngle(metrics.angle - gesture.lastAngle);
     model.rotation.y -= angleDelta;

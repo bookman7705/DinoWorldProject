@@ -34,46 +34,22 @@ export const MODEL_REGISTRY = {
       }
     }
   },
-  pterosaur: {
-    id: "pterosaur",
-    label: "Pterosaur",
-    description: "Flying reptile model for AR placement tests.",
-    modelFile: "Pterosaur.glb",
-    iosFile: "Pterosaur.usdz",
-    defaultScale: 0.1,
-    animation: "All Animations",
+  mosasaurus: {
+    id: "mosasaurus",
+    label: "Mosasaurus",
+    description: "Large marine reptile model for AR and 3D view placement tests.",
+    modelFile: "mosasaurus.glb",
+    iosFile: "mosasaurus.usdz",
+    defaultScale: 0.25,
     view3d: {
       position: [0, 0, 0],
-      scale: [4, 4, 4],
+      scale: [6, 6, 6],
       rotation: [0, -Math.PI / 2, 0],
-      description:
-        "This model represents a pterosaur, a group of flying reptiles that lived alongside dinosaurs. It is inspired by well-known pterosaurs such as Pteranodon but does not depict a specific species.",
       camera: {
-        target: [0, 5, 0],
-        initialPosition: [-15, 1.5, 0],
+        target: [0, 3, 0],
+        initialPosition: [-15, 5, 0],
         minDistance: 7,
-        maxDistance: 18,
-        minPitch: 0.2,
-        maxPitch: 1.9
-      }
-    }
-  },
-  anky: {
-    id: "anky",
-    label: "Ankylosaurus",
-    description: "Armored herbivore model for AR and 3D view placement tests.",
-    modelFile: "Ankylosaurus.glb",
-    iosFile: "Ankylosaurus.usdz",
-    defaultScale: 0.5,
-    view3d: {
-      position: [0, 0, 0],
-      scale: [1.5, 1.5, 1.5],
-      rotation: [0, -Math.PI / 4, 0],
-      camera: {
-        target: [0, 2, 0],
-        initialPosition: [-15, 0, 0],
-        minDistance: 7,
-        maxDistance: 18,
+        maxDistance: 20,
         minPitch: 0.2,
         maxPitch: Math.PI / 2 - 0.1
       }
@@ -122,27 +98,6 @@ export const MODEL_REGISTRY = {
       }
     }
   },
-  spinosaurus: {
-    id: "spinosaurus",
-    label: "Spinosaurus",
-    description: "Large sail-backed predator model for AR and 3D view placement tests.",
-    modelFile: "Spinosaurus.glb",
-    iosFile: "Spinosaurus.usdz",
-    defaultScale: 0.25,
-    view3d: {
-      position: [0, 0, 0],
-      scale: [6, 6, 6],
-      rotation: [0, -Math.PI / 2, 0],
-      camera: {
-        target: [0, 3, 0],
-        initialPosition: [-15, 5, 0],
-        minDistance: 7,
-        maxDistance: 20,
-        minPitch: 0.2,
-        maxPitch: Math.PI / 2 - 0.1
-      }
-    }
-  },
   triceratop: {
     id: "triceratop",
     label: "Triceratops",
@@ -164,12 +119,33 @@ export const MODEL_REGISTRY = {
       }
     }
   },
-  allosaurus: {
-    id: "allosaurus",
-    label: "Allosaurus",
-    description: "Large theropod predator model for AR and 3D view placement tests.",
-    modelFile: "Allosaurus.glb",
-    iosFile: "Allosaurus.usdz",
+  pachycephalasaurus: {
+    id: "pachycephalasaurus",
+    label: "Pachycephalosaurus",
+    description: "Dome-headed herbivore model for AR and 3D view placement tests.",
+    modelFile: "pachycephalasaurus.glb",
+    iosFile: "pachycephalasaurus.usdz",
+    defaultScale: 0.25,
+    view3d: {
+      position: [0, 0, 0],
+      scale: [3, 3, 3],
+      rotation: [0, -Math.PI / 2, 0],
+      camera: {
+        target: [0, 2, 0],
+        initialPosition: [-15, 3, 0],
+        minDistance: 7,
+        maxDistance: 18,
+        minPitch: 0.2,
+        maxPitch: Math.PI / 2 - 0.1
+      }
+    }
+  },
+  stegasaurus: {
+    id: "stegasaurus",
+    label: "Stegosaurus",
+    description: "Plated herbivore model for AR and 3D view placement tests.",
+    modelFile: "stegasaurus.glb",
+    iosFile: "stegasaurus.usdz",
     defaultScale: 0.25,
     view3d: {
       position: [0, 0, 0],
@@ -180,6 +156,27 @@ export const MODEL_REGISTRY = {
         initialPosition: [-15, 5, 0],
         minDistance: 7,
         maxDistance: 18,
+        minPitch: 0.2,
+        maxPitch: Math.PI / 2 - 0.1
+      }
+    }
+  },
+  stygimoloch: {
+    id: "stygimoloch",
+    label: "Stygimoloch",
+    description: "Small dome-headed herbivore model for AR and 3D view placement tests.",
+    modelFile: "stygimoloch.glb",
+    iosFile: "stygimoloch.usdz",
+    defaultScale: 0.3,
+    view3d: {
+      position: [0, 0, 0],
+      scale: [2, 2, 2],
+      rotation: [0, -Math.PI / 4, 0],
+      camera: {
+        target: [0, 1.5, 0],
+        initialPosition: [-12, 2, 0],
+        minDistance: 5,
+        maxDistance: 14,
         minPitch: 0.2,
         maxPitch: Math.PI / 2 - 0.1
       }

@@ -9,7 +9,7 @@ import { localRepoAssetUrl } from "./asset-urls.js";
 export const IMAGE_SCAN_TARGET_SIZE = 512;
 
 /** Bump when tracker images or ImageScan.mind are recompiled (browser cache bust). */
-export const IMAGE_SCAN_MIND_VERSION = 7;
+export const IMAGE_SCAN_MIND_VERSION = 8;
 
 export const COMBINED_MIND_URL = localRepoAssetUrl("mind/ImageScan.mind", IMAGE_SCAN_MIND_VERSION);
 
@@ -40,17 +40,17 @@ export function resolveImageScanModelScale(target, registryEntry) {
 
 export const IMAGE_SCAN_TARGETS = [
   {
-    id: "spinosaurus",
+    id: "mosasaurus",
     targetIndex: 0,
-    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Spinosaurus.jpg", IMAGE_SCAN_MIND_VERSION),
+    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Mosasaurus.jpg", IMAGE_SCAN_MIND_VERSION),
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
     modelScale: 2
   },
   {
-    id: "pterosaur",
+    id: "pachycephalasaurus",
     targetIndex: 1,
-    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Pterosaur.jpg", IMAGE_SCAN_MIND_VERSION),
+    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Pachycephalosaurus.jpg", IMAGE_SCAN_MIND_VERSION),
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
     modelScale: 1
@@ -64,17 +64,17 @@ export const IMAGE_SCAN_TARGETS = [
     modelScale: 1
   },
   {
-    id: "allosaurus",
+    id: "stegasaurus",
     targetIndex: 3,
-    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Allosaurus.jpg", IMAGE_SCAN_MIND_VERSION),
+    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Stegosaurus.jpg", IMAGE_SCAN_MIND_VERSION),
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
     modelScale: 1
   },
   {
-    id: "anky",
+    id: "stygimoloch",
     targetIndex: 4,
-    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Ankylosaurus.jpg", IMAGE_SCAN_MIND_VERSION),
+    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Stygimoloch.jpg", IMAGE_SCAN_MIND_VERSION),
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
     modelScale: 0.3

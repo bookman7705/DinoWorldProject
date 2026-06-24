@@ -20,7 +20,7 @@ backBtn.addEventListener("click", () => {
 
 const selection = getModelFromQuery(window.location.search);
 if (!selection.entry) {
-  statusEl.textContent = `Invalid model ID "${selection.id || ""}". Use a valid id like ?id=allosaurus.`;
+  statusEl.textContent = `Invalid model ID "${selection.id || ""}". Use a valid id like ?id=rex.`;
   helpEl.textContent = "";
   throw new Error("Invalid model id");
 }

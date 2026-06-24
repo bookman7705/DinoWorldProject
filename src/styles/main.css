@@ -381,6 +381,15 @@ h1 {
   line-height: 1.35;
 }
 
+.overlay-scale {
+  margin: 10px 0 0;
+  color: #3bff8f;
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
 .overlay-status {
   min-height: 16px;
   margin: 10px 0 0;
