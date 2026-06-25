@@ -1,5 +1,5 @@
 import { getModelFromQuery } from "./model-registry.js";
-import { resolveModelUrl } from "../../private/local-models/resolve-model-url.js";
+import { resolveModelUrl } from "./resolve-model-url.js";
 import { buildMenuBackUrl } from "./menu-navigation.js";
 
 const titleEl = document.getElementById("ar-model-name");

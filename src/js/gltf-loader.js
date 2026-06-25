@@ -1,5 +1,5 @@
 import { assertValidModelFilename } from "./asset-urls.js";
-import { resolveModelUrl } from "../../private/local-models/resolve-model-url.js";
+import { resolveModelUrl } from "./resolve-model-url.js";
 
 export function getModelFilename(urlOrFilename) {
   if (urlOrFilename == null || typeof urlOrFilename !== "string") {
@@ -18,7 +18,7 @@ export function getModelFilename(urlOrFilename) {
 }
 
 /**
- * Load a GLB/GLTF. URL comes from private/local-models override or Cloudflare R2 signed URLs.
+ * Load a GLB/GLTF. URL comes from local ./models override or Cloudflare R2 signed URLs.
  */
 export function loadGltf(loader, modelFilename, { onLoad, onError } = {}) {
   let filename;
