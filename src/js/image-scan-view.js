@@ -81,14 +81,18 @@ function showScanner() {
   scanBackBtn.hidden = false;
 }
 
-function setHint(message) {
+function setHint(message, tone = "scanning") {
   if (!message) {
     scanHint.hidden = true;
     scanHint.textContent = "";
+    scanHint.classList.remove("scan-hint--scanning", "scan-hint--found");
     return;
   }
+
   scanHint.hidden = false;
   scanHint.textContent = message;
+  scanHint.classList.remove("scan-hint--scanning", "scan-hint--found");
+  scanHint.classList.add(tone === "found" ? "scan-hint--found" : "scan-hint--scanning");
 }
 
 function getScanPickerModels() {
@@ -175,12 +179,14 @@ async function startScanSession(target) {
   model.rotation.set(...target.modelRotation);
   model.position.set(...target.modelPosition);
 
+  const label = entry.label;
+
   anchor.onTargetFound = () => {
     console.log("target found");
     if (model && !anchor.group.children.includes(model)) {
       anchor.group.add(model);
     }
-    setHint("");
+    setHint(`Tracking image found — ${label}`, "found");
   };
 
   anchor.onTargetLost = () => {
@@ -188,14 +194,14 @@ async function startScanSession(target) {
     if (model) {
       anchor.group.remove(model);
     }
-    setHint("Scanning for image…");
+    setHint("Tracking image lost — scanning…", "scanning");
   };
 
   setHint("Starting camera…");
   sessionRunning = true;
   await mindarThree.start();
   mindarThree.resize();
-  setHint("Scanning for image…");
+  setHint("Scanning for tracking image…", "scanning");
 
   renderer.setAnimationLoop(() => {
     if (!sessionRunning) {
