@@ -29,6 +29,11 @@ export function imageScanMindUrl(target) {
   return localRepoAssetUrl(target.mindFile, IMAGE_SCAN_MIND_VERSION);
 }
 
+/** MindAR imageTargetSrc — no cache-bust query (matches image_tracking_example.html). */
+export function imageScanMindSrc(target) {
+  return localRepoAssetUrl(target.mindFile);
+}
+
 /**
  * @param {string | null | undefined} id
  * @returns {object | null}

@@ -238,18 +238,22 @@ h1 {
 #mindar-container {
   position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
+  z-index: 1;
 }
 
-#mindar-container canvas,
-#mindar-container video {
-  position: absolute;
+.image-scan-body:not(.scan-session-active) #mindar-container {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.image-scan-body #scan-menu {
+  position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  z-index: 2;
+  min-height: 100%;
 }
 
 .scan-back-btn {
@@ -257,6 +261,25 @@ h1 {
   top: max(12px, env(safe-area-inset-top));
   left: 12px;
   z-index: 10;
+}
+
+.scan-scale {
+  position: fixed;
+  top: max(56px, calc(env(safe-area-inset-top) + 44px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  color: #3bff8f;
+  background: rgba(9, 24, 40, 0.82);
+  border: 1px solid rgba(59, 255, 143, 0.35);
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  pointer-events: none;
 }
 
 .scan-hint {
