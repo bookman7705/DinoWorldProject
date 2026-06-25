@@ -312,6 +312,43 @@ h1 {
   border: 1px solid rgba(74, 222, 128, 0.45);
 }
 
+.scan-debug-panel {
+  position: fixed;
+  top: max(56px, calc(env(safe-area-inset-top) + 44px));
+  right: 10px;
+  z-index: 11;
+  width: min(92vw, 340px);
+  max-height: min(52vh, 360px);
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(155, 180, 206, 0.35);
+  background: rgba(9, 16, 26, 0.88);
+  color: #cbd7e6;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.scan-debug-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8ae8ff;
+}
+
+.scan-debug-body {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #d8e6f2;
+}
+
 .ios-header {
   position: fixed;
   top: 10px;

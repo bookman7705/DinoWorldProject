@@ -10,6 +10,11 @@ import {
   validateImageScanTargetAssets
 } from "./image-scan-registry.js";
 import { isDebugMode } from "./debug.js";
+import {
+  buildScanDebugSnapshot,
+  createImageScanDebugMonitor,
+  probeImageScanTarget
+} from "./image-scan-debug.js";
 import { buildMenuBackUrl } from "./menu-navigation.js";
 import { promptModelSelection } from "./model-picker.js";
 import { loadGltf } from "./gltf-loader.js";
@@ -33,6 +38,65 @@ let camera = null;
 let anchor = null;
 let model = null;
 let sessionRunning = false;
+
+const scanDebug = debugMode ? createImageScanDebugMonitor() : null;
+const scanDebugState = {
+  phase: "idle",
+  sessionStartedAt: null,
+  target: null,
+  entry: null,
+  modelLoaded: false,
+  assetProbe: null,
+  foundCount: 0,
+  lostCount: 0,
+  lastError: null
+};
+
+function resetScanDebugState() {
+  scanDebugState.phase = "idle";
+  scanDebugState.sessionStartedAt = null;
+  scanDebugState.target = null;
+  scanDebugState.entry = null;
+  scanDebugState.modelLoaded = false;
+  scanDebugState.assetProbe = null;
+  scanDebugState.foundCount = 0;
+  scanDebugState.lostCount = 0;
+  scanDebugState.lastError = null;
+}
+
+function setScanDebugPhase(phase) {
+  if (!scanDebug) {
+    return;
+  }
+  scanDebugState.phase = phase;
+}
+
+function refreshScanDebugSnapshot() {
+  if (!scanDebug) {
+    return;
+  }
+
+  scanDebug.setSnapshotProvider(() =>
+    buildScanDebugSnapshot({
+      ...scanDebugState,
+      mindarThree,
+      anchor,
+      container: mindarContainer
+    })
+  );
+}
+
+function showScanDebug() {
+  if (!scanDebug) {
+    return;
+  }
+  refreshScanDebugSnapshot();
+  scanDebug.show();
+}
+
+function hideScanDebug() {
+  scanDebug?.hide();
+}
 
 function prefersUserFacingCamera() {
   return !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -74,9 +138,21 @@ async function reportMissingScanAssets(target) {
     return;
   }
 
-  const result = await validateImageScanTargetAssets(target, { debug: true });
-  if (!result.ok && result.message) {
-    scanSubtitleEl.textContent = result.message;
+  const probe = await probeImageScanTarget(target);
+  scanDebugState.assetProbe = probe;
+  scanDebug?.log("asset probe", probe);
+
+  if (!probe.allOk) {
+    const missing = [];
+    if (!probe.mind.ok) {
+      missing.push(`${probe.mind.path} (.mind: ${probe.mind.error ?? probe.mind.status})`);
+    }
+    if (!probe.tracker.ok) {
+      missing.push(`${probe.tracker.path} (.jpg: ${probe.tracker.error ?? probe.tracker.status})`);
+    }
+    const message = `Missing image-scan assets for ${target.id}: ${missing.join(", ")}`;
+    scanSubtitleEl.textContent = message;
+    console.warn("[image-scan]", message);
   }
 }
 
@@ -86,6 +162,8 @@ function showMenu() {
   scanBackBtn.hidden = true;
   scanHint.hidden = true;
   startScanBtn.disabled = false;
+  hideScanDebug();
+  resetScanDebugState();
 }
 
 function showScanner() {
@@ -137,6 +215,7 @@ async function disposeScanSession() {
   sessionRunning = false;
   renderer?.setAnimationLoop(null);
   model = null;
+  hideScanDebug();
 
   if (mindarThree) {
     try {
@@ -159,19 +238,40 @@ async function startScanSession(target) {
   showScanner();
   setHint("Loading…");
 
+  resetScanDebugState();
+  scanDebugState.target = target;
+  scanDebugState.sessionStartedAt = performance.now();
+  setScanDebugPhase("loading");
+  showScanDebug();
+
   const entry = MODEL_REGISTRY[target.id];
+  scanDebugState.entry = entry ?? null;
   if (!entry?.modelFile) {
     throw new Error(`No model for image-scan id "${target.id}"`);
   }
 
-  const assetCheck = await validateImageScanTargetAssets(target, { debug: debugMode });
-  if (!assetCheck.ok && debugMode && assetCheck.message) {
-    setHint(assetCheck.message, "scanning");
+  if (debugMode) {
+    scanDebugState.assetProbe = await probeImageScanTarget(target);
+    scanDebug?.log("session asset probe", scanDebugState.assetProbe);
+    if (!scanDebugState.assetProbe.allOk) {
+      setHint(
+        `Missing assets — check debug panel (.mind / .jpg for ${target.id})`,
+        "scanning"
+      );
+    }
+  } else {
+    const assetCheck = await validateImageScanTargetAssets(target);
+    if (!assetCheck.ok && assetCheck.message) {
+      setHint(assetCheck.message, "scanning");
+    }
   }
+
+  const mindUrl = imageScanMindSrc(target);
+  scanDebug?.log("MindAR init", { targetId: target.id, mindUrl });
 
   mindarThree = new MindARThree({
     container: mindarContainer,
-    imageTargetSrc: imageScanMindSrc(target),
+    imageTargetSrc: mindUrl,
     filterMinCF: 0.0001,
     filterBeta: 0.01
   });
@@ -190,8 +290,10 @@ async function startScanSession(target) {
 
   anchor = mindarThree.addAnchor(0);
 
+  setScanDebugPhase("loading-model");
   const gltf = await loadScanModel(entry.modelFile);
   model = gltf.scene;
+  scanDebugState.modelLoaded = true;
   const [sx, sy, sz] = resolveImageScanModelScale(target, entry);
   model.scale.set(sx, sy, sz);
   model.rotation.set(...target.modelRotation);
@@ -200,7 +302,9 @@ async function startScanSession(target) {
   const label = entry.label;
 
   anchor.onTargetFound = () => {
-    console.log("target found");
+    scanDebugState.foundCount += 1;
+    setScanDebugPhase("target-found");
+    scanDebug?.log("target found", { count: scanDebugState.foundCount });
     if (model && !anchor.group.children.includes(model)) {
       anchor.group.add(model);
     }
@@ -208,7 +312,9 @@ async function startScanSession(target) {
   };
 
   anchor.onTargetLost = () => {
-    console.log("target lost");
+    scanDebugState.lostCount += 1;
+    setScanDebugPhase("scanning");
+    scanDebug?.log("target lost", { count: scanDebugState.lostCount });
     if (model) {
       anchor.group.remove(model);
     }
@@ -216,10 +322,25 @@ async function startScanSession(target) {
   };
 
   setHint("Starting camera…");
+  setScanDebugPhase("starting-camera");
   sessionRunning = true;
-  await mindarThree.start();
+
+  try {
+    await mindarThree.start();
+  } catch (error) {
+    scanDebugState.lastError =
+      error instanceof Error ? error.message : String(error);
+    scanDebug?.log("mindarThree.start failed", scanDebugState.lastError);
+    throw error;
+  }
+
   mindarThree.resize();
+  setScanDebugPhase("scanning");
   setHint("Scanning for tracking image…", "scanning");
+  scanDebug?.log("session running", {
+    cameraFacing: mindarThree.shouldFaceUser ? "user" : "environment",
+    mindUrl
+  });
 
   renderer.setAnimationLoop(() => {
     if (!sessionRunning) {
@@ -258,6 +379,9 @@ startScanBtn.addEventListener("click", async () => {
     await startScanSession(target);
   } catch (error) {
     console.error(error);
+    scanDebugState.lastError = error instanceof Error ? error.message : String(error);
+    setScanDebugPhase("error");
+    scanDebug?.log("start scan failed", scanDebugState.lastError);
     setHint("Could not start. Allow camera access and try again.");
     startScanBtn.disabled = false;
     showMenu();
