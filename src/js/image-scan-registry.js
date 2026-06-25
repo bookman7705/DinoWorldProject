@@ -1,16 +1,10 @@
 /**
  * Per-dinosaur MindAR targets. Each tracker JPG (512×512) compiles to its own .mind file.
  * Example: tracker_jpg/Mosasaurus.jpg → mind/mosa.mind
- *
- * Compile a target (MindAR CLI or scripts/compile-mind-targets.mjs), then bump
- * IMAGE_SCAN_MIND_VERSION when files change.
  */
 import { localRepoAssetUrl } from "./asset-urls.js";
 
 export const IMAGE_SCAN_TARGET_SIZE = 512;
-
-/** Bump when any mind/*.mind file is recompiled (browser cache bust). */
-export const IMAGE_SCAN_MIND_VERSION = 10;
 
 /**
  * @param {object} target
@@ -25,13 +19,63 @@ export function resolveImageScanModelScale(target, registryEntry) {
   return [scale, scale, scale];
 }
 
-export function imageScanMindUrl(target) {
-  return localRepoAssetUrl(target.mindFile, IMAGE_SCAN_MIND_VERSION);
-}
-
-/** MindAR imageTargetSrc — no cache-bust query (matches image_tracking_example.html). */
 export function imageScanMindSrc(target) {
   return localRepoAssetUrl(target.mindFile);
+}
+
+export function imageScanTrackerSrc(target) {
+  return localRepoAssetUrl(target.trackerJpg);
+}
+
+async function repoAssetExists(relativePath) {
+  const url = localRepoAssetUrl(relativePath);
+
+  try {
+    const head = await fetch(url, { method: "HEAD" });
+    if (head.ok) {
+      return true;
+    }
+  } catch {
+    // fall through to GET probe
+  }
+
+  try {
+    const get = await fetch(url, { method: "GET", cache: "no-store" });
+    return get.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * @param {object} target
+ * @param {{ debug?: boolean }} [options]
+ * @returns {Promise<{ ok: boolean, missing: string[], message: string | null }>}
+ */
+export async function validateImageScanTargetAssets(target, { debug = false } = {}) {
+  const checks = [
+    { kind: ".mind", path: target.mindFile },
+    { kind: ".jpg", path: target.trackerJpg }
+  ];
+
+  const missing = [];
+
+  for (const { kind, path } of checks) {
+    if (!(await repoAssetExists(path))) {
+      missing.push(`${path} (${kind})`);
+    }
+  }
+
+  const message =
+    missing.length > 0
+      ? `Missing image-scan assets for ${target.id}: ${missing.join(", ")}`
+      : null;
+
+  if (message && debug) {
+    console.warn("[image-scan]", message);
+  }
+
+  return { ok: missing.length === 0, missing, message };
 }
 
 /**
@@ -55,7 +99,7 @@ export function getImageScanTarget(id) {
  * @type {Array<{
  *   id: string,
  *   mindFile: string,
- *   trackerImageUrl: string,
+ *   trackerJpg: string,
  *   modelRotation: [number, number, number],
  *   modelPosition: [number, number, number],
  *   modelScale: number | [number, number, number] | null
@@ -65,7 +109,7 @@ export const IMAGE_SCAN_TARGETS = [
   {
     id: "mosa",
     mindFile: "mind/mosa.mind",
-    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Mosasaurus.jpg", IMAGE_SCAN_MIND_VERSION),
+    trackerJpg: "tracker_jpg/Mosasaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
     modelScale: 2
@@ -73,7 +117,7 @@ export const IMAGE_SCAN_TARGETS = [
   {
     id: "pach",
     mindFile: "mind/pach.mind",
-    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Pachycephalosaurus.jpg", IMAGE_SCAN_MIND_VERSION),
+    trackerJpg: "tracker_jpg/Pachycephalosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
     modelScale: 1
@@ -81,7 +125,7 @@ export const IMAGE_SCAN_TARGETS = [
   {
     id: "rex",
     mindFile: "mind/rex.mind",
-    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Tyrannosaurus.jpg", IMAGE_SCAN_MIND_VERSION),
+    trackerJpg: "tracker_jpg/Tyrannosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
     modelScale: 1
@@ -89,7 +133,7 @@ export const IMAGE_SCAN_TARGETS = [
   {
     id: "stega",
     mindFile: "mind/stega.mind",
-    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Stegosaurus.jpg", IMAGE_SCAN_MIND_VERSION),
+    trackerJpg: "tracker_jpg/Stegosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
     modelScale: 1
@@ -97,7 +141,7 @@ export const IMAGE_SCAN_TARGETS = [
   {
     id: "styg",
     mindFile: "mind/styg.mind",
-    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Stygimoloch.jpg", IMAGE_SCAN_MIND_VERSION),
+    trackerJpg: "tracker_jpg/Stygimoloch.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
     modelScale: 0.3
@@ -105,7 +149,7 @@ export const IMAGE_SCAN_TARGETS = [
   {
     id: "bron",
     mindFile: "mind/bron.mind",
-    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Brontosaurus.jpg", IMAGE_SCAN_MIND_VERSION),
+    trackerJpg: "tracker_jpg/Brontosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
     modelScale: 1
@@ -113,7 +157,7 @@ export const IMAGE_SCAN_TARGETS = [
   {
     id: "tric",
     mindFile: "mind/tric.mind",
-    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Triceratops.jpg", IMAGE_SCAN_MIND_VERSION),
+    trackerJpg: "tracker_jpg/Triceratops.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
     modelScale: 1.25
@@ -121,7 +165,7 @@ export const IMAGE_SCAN_TARGETS = [
   {
     id: "raptor",
     mindFile: "mind/raptor.mind",
-    trackerImageUrl: localRepoAssetUrl("tracker_jpg/Velociraptor.jpg", IMAGE_SCAN_MIND_VERSION),
+    trackerJpg: "tracker_jpg/Velociraptor.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
     modelScale: 2

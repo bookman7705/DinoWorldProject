@@ -6,7 +6,8 @@ import {
   getImageScanTarget,
   imageScanMindSrc,
   IMAGE_SCAN_TARGETS,
-  resolveImageScanModelScale
+  resolveImageScanModelScale,
+  validateImageScanTargetAssets
 } from "./image-scan-registry.js";
 import { isDebugMode } from "./debug.js";
 import { buildMenuBackUrl } from "./menu-navigation.js";
@@ -48,6 +49,7 @@ function initScanMenu() {
   if (debugMode) {
     scanSubtitleEl.textContent =
       "Choose a dinosaur, then point your camera at its tracking image.";
+    void reportMissingScanAssets(getScanTargetFromUrl());
     return;
   }
 
@@ -65,6 +67,17 @@ function initScanMenu() {
   scanSubtitleEl.textContent = entry
     ? `Point your camera at the ${entry.label} tracking image.`
     : "Point your camera at the tracking image.";
+}
+
+async function reportMissingScanAssets(target) {
+  if (!debugMode || !target) {
+    return;
+  }
+
+  const result = await validateImageScanTargetAssets(target, { debug: true });
+  if (!result.ok && result.message) {
+    scanSubtitleEl.textContent = result.message;
+  }
 }
 
 function showMenu() {
@@ -151,6 +164,11 @@ async function startScanSession(target) {
     throw new Error(`No model for image-scan id "${target.id}"`);
   }
 
+  const assetCheck = await validateImageScanTargetAssets(target, { debug: debugMode });
+  if (!assetCheck.ok && debugMode && assetCheck.message) {
+    setHint(assetCheck.message, "scanning");
+  }
+
   mindarThree = new MindARThree({
     container: mindarContainer,
     imageTargetSrc: imageScanMindSrc(target),
@@ -232,6 +250,11 @@ startScanBtn.addEventListener("click", async () => {
       startScanBtn.disabled = false;
       return;
     }
+
+    if (debugMode) {
+      await reportMissingScanAssets(target);
+    }
+
     await startScanSession(target);
   } catch (error) {
     console.error(error);
