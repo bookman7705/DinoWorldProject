@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 const DEFAULT_LIGHTING = {
-  ambientIntensity: 0.4,
+  ambientIntensity: 0.6,
   hemisphereIntensity: 1.4
 };
 
@@ -13,7 +13,7 @@ export function setupSceneLighting(scene, options = {}) {
   const hemiLight = new THREE.HemisphereLight(0xffffff, 0x556677, lighting.hemisphereIntensity);
   scene.add(hemiLight);
 
-  const keyLight = new THREE.DirectionalLight(0xfff5e8, 1.2);
+  const keyLight = new THREE.DirectionalLight(0xfff5e8, 2.2);
   keyLight.position.set(8, 14, 8);
   scene.add(keyLight);
 

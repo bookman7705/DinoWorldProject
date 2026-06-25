@@ -1,4 +1,5 @@
-import { assertValidModelFilename, resolveRemoteModelUrl } from "./asset-urls.js";
+import { assertValidModelFilename } from "./asset-urls.js";
+import { resolveModelUrl } from "../../private/local-models/resolve-model-url.js";
 
 export function getModelFilename(urlOrFilename) {
   if (urlOrFilename == null || typeof urlOrFilename !== "string") {
@@ -17,7 +18,7 @@ export function getModelFilename(urlOrFilename) {
 }
 
 /**
- * Load a GLB/GLTF from Cloudflare R2 via the signed-URL worker.
+ * Load a GLB/GLTF. URL comes from private/local-models override or Cloudflare R2 signed URLs.
  */
 export function loadGltf(loader, modelFilename, { onLoad, onError } = {}) {
   let filename;
@@ -29,7 +30,7 @@ export function loadGltf(loader, modelFilename, { onLoad, onError } = {}) {
     return;
   }
 
-  void resolveRemoteModelUrl(filename)
+  void resolveModelUrl(filename)
     .then((url) => {
       loader.load(url, onLoad, undefined, (error) => {
         console.error(`[gltf] Load failed for ${filename}`, error);

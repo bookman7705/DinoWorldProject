@@ -42,8 +42,8 @@ export const MODEL_REGISTRY = {
     iosFile: "mosasaurus.usdz",
     defaultScale: 1.0,
     view3d: {
-      position: [0, 0, 0],
-      scale: [6, 6, 6],
+      position: [0, 2, 0],
+      scale: [10, 10, 10],
       rotation: [0, -Math.PI / 2, 0],
       camera: {
         target: [0, 3, 0],
@@ -65,7 +65,7 @@ export const MODEL_REGISTRY = {
     animation: "Idle_01",
     view3d: {
       position: [0, 0, 0],
-      scale: [9, 9, 9],
+      scale: [3, 3, 3],
       rotation: [0, -Math.PI / 2, 0],
       camera: {
         target: [0, 2.5, 0],
@@ -85,16 +85,16 @@ export const MODEL_REGISTRY = {
     iosFile: "brontosaurus.usdz",
     defaultScale: 1.0,
     view3d: {
-      position: [0, 0, 0],
-      scale: [3, 3, 3],
+      position: [0, 0.25, 0],
+      scale: [15, 15, 15],
       rotation: [0, -Math.PI / 2, 0],
       camera: {
-        target: [0, 4, 0],
-        initialPosition: [-18, 8, 0],
-        minDistance: 10,
-        maxDistance: 24,
+        target: [0, 2.5, 0],
+        initialPosition: [-15, 5, 0],
+        minDistance: 7,
+        maxDistance: 18,
         minPitch: 0.2,
-        maxPitch: Math.PI / 2 - 0.1
+        maxPitch: 1.75 // about 110°
       }
     }
   },
@@ -107,7 +107,7 @@ export const MODEL_REGISTRY = {
     defaultScale: 1.0,
     view3d: {
       position: [0, 0, 0],
-      scale: [4, 4, 4],
+      scale: [15, 15, 15],
       rotation: [0, -Math.PI / 2, 0],
       camera: {
         target: [0, 2, 0],
@@ -128,7 +128,7 @@ export const MODEL_REGISTRY = {
     defaultScale: 1.0,
     view3d: {
       position: [0, 0, 0],
-      scale: [3, 3, 3],
+      scale: [6, 6, 6],
       rotation: [0, -Math.PI / 2, 0],
       camera: {
         target: [0, 2, 0],
@@ -149,7 +149,7 @@ export const MODEL_REGISTRY = {
     defaultScale: 1.0,
     view3d: {
       position: [0, 0, 0],
-      scale: [5, 5, 5],
+      scale: [18, 18, 18],
       rotation: [0, -Math.PI / 2, 0],
       camera: {
         target: [0, 2.5, 0],
@@ -170,8 +170,8 @@ export const MODEL_REGISTRY = {
     defaultScale: 1.0,
     view3d: {
       position: [0, 0, 0],
-      scale: [2, 2, 2],
-      rotation: [0, -Math.PI / 4, 0],
+      scale: [8, 8, 8],
+      rotation: [0, -Math.PI / 2, 0],
       camera: {
         target: [0, 1.5, 0],
         initialPosition: [-12, 2, 0],

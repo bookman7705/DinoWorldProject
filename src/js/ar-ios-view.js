@@ -1,5 +1,5 @@
 import { getModelFromQuery } from "./model-registry.js";
-import { resolveRemoteModelUrl } from "./asset-urls.js";
+import { resolveModelUrl } from "../../private/local-models/resolve-model-url.js";
 import { buildMenuBackUrl } from "./menu-navigation.js";
 
 const titleEl = document.getElementById("ar-model-name");
@@ -35,11 +35,11 @@ let iosSrcUrl = null;
 
 async function initViewer() {
   try {
-    const modelUrl = await resolveRemoteModelUrl(selection.entry.modelFile);
+    const modelUrl = await resolveModelUrl(selection.entry.modelFile);
     viewer.src = modelUrl;
 
     if (selection.entry.iosFile) {
-      iosSrcUrl = await resolveRemoteModelUrl(selection.entry.iosFile);
+      iosSrcUrl = await resolveModelUrl(selection.entry.iosFile);
       viewer.setAttribute("ios-src", iosSrcUrl);
     }
   } catch (error) {

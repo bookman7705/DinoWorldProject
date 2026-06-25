@@ -2,7 +2,7 @@
  * Debug helpers for development. Set DEBUG_MODE_ENABLED to true, or use ?debug=1.
  */
 
-export const DEBUG_MODE_ENABLED = false;
+export const DEBUG_MODE_ENABLED = true;
 
 export function isDebugMode(search = window.location.search) {
   if (DEBUG_MODE_ENABLED) {
