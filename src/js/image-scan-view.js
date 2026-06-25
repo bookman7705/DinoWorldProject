@@ -214,22 +214,51 @@ function setupMindAR(target) {
   anchor.onTargetLost = () => onTargetLost(target);
 }
 
+function attachScanModel(target) {
+  if (!cachedModel || !anchor) {
+    return;
+  }
+
+  const registryEntry = MODEL_REGISTRY[target.id];
+  if (!registryEntry) {
+    return;
+  }
+
+  clearActiveModel();
+
+  const model = cloneSkinnedScene(cachedModel.scene);
+  const [scaleX, scaleY, scaleZ] = resolveImageScanModelScale(target, registryEntry);
+  model.scale.set(scaleX, scaleY, scaleZ);
+  model.rotation.set(...target.modelRotation);
+  model.position.set(...target.modelPosition);
+
+  anchor.group.add(model);
+  activeModel = model;
+
+  if (cachedModel.animations.length > 0) {
+    mixer = new THREE.AnimationMixer(model);
+    playModelAnimation(mixer, cachedModel.animations, registryEntry.animation);
+  }
+}
+
 async function startScanSession(target) {
   if (mindarThree) {
     await disposeScanSession();
   }
 
-  setupMindAR(target);
   showScanner();
+  setupMindAR(target);
   setHint("Loading model…", "scanning");
 
   await preloadModel(target);
+  attachScanModel(target);
 
   setHint("Starting camera…", "scanning");
-  await mindarThree.start();
-
   sessionRunning = true;
   activeTarget = null;
+
+  await mindarThree.start();
+
   setHint("Scanning for image…", "scanning");
 
   renderer.setAnimationLoop(() => {
@@ -240,6 +269,10 @@ async function startScanSession(target) {
     mixer?.update(clock.getDelta());
     renderer.render(scene, camera);
   });
+
+  if (!activeTarget && anchor?.group?.visible) {
+    onTargetFound(target);
+  }
 }
 
 function disposeMeshes(object3d) {
@@ -312,31 +345,11 @@ async function disposeScanSession() {
 }
 
 function onTargetFound(target) {
-  if (!sessionRunning || activeTarget || !cachedModel || !anchor) {
-    return;
-  }
-
-  const registryEntry = MODEL_REGISTRY[target.id];
-  if (!registryEntry) {
+  if (!sessionRunning || !anchor) {
     return;
   }
 
   activeTarget = target.id;
-
-  const model = cloneSkinnedScene(cachedModel.scene);
-  const [scaleX, scaleY, scaleZ] = resolveImageScanModelScale(target, registryEntry);
-  model.scale.set(scaleX, scaleY, scaleZ);
-  model.rotation.set(...target.modelRotation);
-  model.position.set(...target.modelPosition);
-
-  anchor.group.add(model);
-  activeModel = model;
-
-  if (cachedModel.animations.length > 0) {
-    mixer = new THREE.AnimationMixer(model);
-    playModelAnimation(mixer, cachedModel.animations, registryEntry.animation);
-  }
-
   setHint("", "scanning");
 }
 
@@ -346,6 +359,5 @@ function onTargetLost(target) {
   }
 
   activeTarget = null;
-  clearActiveModel();
   setHint("Scanning for image…", "scanning");
 }
