@@ -1,5 +1,5 @@
 import { getModelFromQuery } from "./model-registry.js";
-import { resolveModelObjectUrl } from "./resolve-model-url.js";
+import { resolveModelUrl } from "./resolve-model-url.js";
 import { buildMenuBackUrl } from "./menu-navigation.js";
 
 const titleEl = document.getElementById("ar-model-name");
@@ -33,13 +33,13 @@ statusEl.textContent = "Model loading...";
 
 let iosSrcUrl = null;
 
-async function initViewer() {
+function initViewer() {
   try {
-    const modelUrl = await resolveModelObjectUrl(selection.entry.modelFile);
+    const modelUrl = resolveModelUrl(selection.entry.modelFile);
     viewer.src = modelUrl;
 
     if (selection.entry.iosFile) {
-      iosSrcUrl = await resolveModelObjectUrl(selection.entry.iosFile);
+      iosSrcUrl = resolveModelUrl(selection.entry.iosFile);
       viewer.setAttribute("ios-src", iosSrcUrl);
     }
   } catch (error) {
@@ -48,7 +48,7 @@ async function initViewer() {
   }
 }
 
-void initViewer();
+initViewer();
 
 viewer.addEventListener("load", () => {
   statusEl.textContent = "Ready. Tap View in AR to place on a horizontal surface.";

@@ -1,6 +1,6 @@
 /**
  * Single source of truth for live app models (index, ar.html, ar-ios.html, view-3d.html).
- * Remote .glb / .usdz files are loaded via the Cloudflare download gateway (see asset-urls.js).
+ * Remote .glb / .usdz files are loaded via the origin-protected Cloudflare gateway (see asset-urls.js).
  * dinoworld_example.html and image_tracking_example.html are reference-only.
  */
 

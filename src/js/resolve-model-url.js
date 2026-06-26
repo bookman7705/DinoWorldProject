@@ -3,8 +3,11 @@
  * Uses ./models when LOCAL_MODEL_OVERRIDE_ENABLED (debug.js), otherwise the Cloudflare gateway.
  */
 
-import { assertValidModelFilename, buildRemoteModelUrl } from "./asset-urls.js";
-import { fetchRemoteModelBlob } from "./model-download.js";
+import {
+  assertValidModelFilename,
+  buildRemoteModelUrl,
+  getModelGatewayAccessHint
+} from "./asset-urls.js";
 import {
   isLocalModelOverrideEnabled,
   LOCAL_MODELS_BASE_PATH
@@ -18,9 +21,20 @@ export function localModelUrl(filename) {
   return `${base}/${name}`;
 }
 
+function logGatewayAccessHint() {
+  if (isLocalModelOverrideEnabled()) {
+    return;
+  }
+
+  const hint = getModelGatewayAccessHint();
+  if (hint) {
+    console.warn("[models]", hint);
+  }
+}
+
 /**
- * Resolve a model filename to a stable load URL (.glb or .usdz).
- * For Three.js loaders, pair with configureModelLoaderAuth() so X-API-Key is sent.
+ * Resolve a model filename to a stable, cache-friendly URL (.glb or .usdz).
+ * Gateway access is origin-restricted by the Cloudflare worker.
  */
 export function resolveModelUrl(filename) {
   const name = assertValidModelFilename(filename);
@@ -33,24 +47,6 @@ export function resolveModelUrl(filename) {
     return localModelUrl(name);
   }
 
+  logGatewayAccessHint();
   return buildRemoteModelUrl(name);
-}
-
-/**
- * Resolve a model to a blob/object URL for elements that cannot set request headers (e.g. model-viewer).
- * Uses Cache API + HTTP cache for repeat loads.
- */
-export async function resolveModelObjectUrl(filename) {
-  const name = assertValidModelFilename(filename);
-
-  if (isLocalModelOverrideEnabled()) {
-    if (!loggedOverrideActive) {
-      console.info("[local-models] Override active — loading from", LOCAL_MODELS_BASE_PATH);
-      loggedOverrideActive = true;
-    }
-    return localModelUrl(name);
-  }
-
-  const blob = await fetchRemoteModelBlob(name);
-  return URL.createObjectURL(blob);
 }

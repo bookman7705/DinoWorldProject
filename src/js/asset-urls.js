@@ -5,13 +5,10 @@
 
 export const MODEL_GATEWAY_ORIGIN = "https://model-gateway.shawnk7705.workers.dev";
 
-/** Must match the worker env DOWNLOAD_KEY (sent as X-API-Key on model requests). */
-export const MODEL_GATEWAY_DOWNLOAD_KEY = "";
+/** Must match allowedOrigins in cloudflare/worker.js */
+export const MODEL_GATEWAY_ALLOWED_ORIGINS = ["https://bookman7705.github.io"];
 
 export const REMOTE_MODEL_PREFIX = "ar-models";
-
-/** Cache API bucket for stable gateway URLs (pairs with worker Cache-Control: immutable). */
-export const MODEL_CACHE_NAME = "dino-world-models-v1";
 
 export function remoteModelKey(filename) {
   const name = assertValidModelFilename(filename);
@@ -24,6 +21,28 @@ export function remoteModelKey(filename) {
 export function buildRemoteModelUrl(filename) {
   const key = remoteModelKey(filename);
   return `${MODEL_GATEWAY_ORIGIN}/${key}`;
+}
+
+/**
+ * Warn when the current page origin cannot access the model gateway worker.
+ */
+export function getModelGatewayAccessHint() {
+  const origin = window.location.origin;
+  if (!origin || origin === "null") {
+    return (
+      "Model gateway requires an http(s) origin. " +
+      "Enable LOCAL_MODEL_OVERRIDE_ENABLED in debug.js for local file testing."
+    );
+  }
+
+  if (MODEL_GATEWAY_ALLOWED_ORIGINS.includes(origin)) {
+    return null;
+  }
+
+  return (
+    `Model downloads are restricted to: ${MODEL_GATEWAY_ALLOWED_ORIGINS.join(", ")}. ` +
+    "Enable LOCAL_MODEL_OVERRIDE_ENABLED in debug.js for local testing."
+  );
 }
 
 /**
@@ -50,4 +69,20 @@ export function assertValidModelFilename(filename) {
   }
 
   return trimmed;
+}
+
+export function getModelFilename(urlOrFilename) {
+  if (urlOrFilename == null || typeof urlOrFilename !== "string") {
+    throw new Error("Model filename is required");
+  }
+
+  if (!urlOrFilename.includes("/") && !urlOrFilename.includes("://")) {
+    return assertValidModelFilename(urlOrFilename);
+  }
+
+  const path = urlOrFilename.includes("://")
+    ? new URL(urlOrFilename, window.location.href).pathname
+    : urlOrFilename.split("?")[0];
+  const basename = path.split("/").pop() || "";
+  return assertValidModelFilename(basename);
 }
