@@ -65,7 +65,7 @@ reticle.matrixAutoUpdate = false;
 reticle.visible = false;
 scene.add(reticle);
 
-const debugMaterials = new URLSearchParams(window.location.search).get("debugMaterials") === "1";
+const debugMaterials = false;
 
 const loader = new GLTFLoader();
 const clock = new THREE.Clock();

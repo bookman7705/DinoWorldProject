@@ -35,11 +35,9 @@ const scanBackBtn = document.getElementById("scan-back-btn");
 const scanHint = document.getElementById("scan-hint");
 const scanScaleEl = document.getElementById("scan-scale");
 
-const IMAGE_SCAN_DEBUG_ENABLED = false;
-
 const loader = new GLTFLoader();
 const clock = new THREE.Clock();
-const debugMode = IMAGE_SCAN_DEBUG_ENABLED && isDebugMode(window.location.search);
+const debugMode = isDebugMode(window.location.search);
 const selection = getModelFromQuery(window.location.search);
 const scanTypeConfig = getImageScanTypeFromQuery(window.location.search);
 
