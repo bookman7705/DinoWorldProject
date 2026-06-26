@@ -10,6 +10,7 @@ import {
   configureGltfRenderer,
   setupArSceneLighting
 } from "./gltf-materials.js";
+import { createContactShadow } from "./ar-contact-shadow.js";
 
 const statusEl = document.getElementById("ar-status");
 const helpEl = document.getElementById("ar-help");
@@ -94,6 +95,7 @@ loadGltf(loader, selection.entry.modelFile, {
     modelRoot.scale.set(baseScale, baseScale, baseScale);
     modelRoot.visible = false;
     modelRoot.add(model);
+    modelRoot.add(createContactShadow(model, renderer));
     scene.add(modelRoot);
 
     if (gltf.animations.length > 0) {

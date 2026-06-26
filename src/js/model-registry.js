@@ -14,7 +14,7 @@ export const MODEL_REGISTRY = {
     description: "Large ground predator model for AR placement tests.",
     modelFile: "rex.glb",
     iosFile: "rex.usdz",
-    defaultScale: 1.0,
+    defaultScale: 0.5,
     //animation: "Idle_01",
     view3d: {
       position: [0, -0, -0],
@@ -40,7 +40,7 @@ export const MODEL_REGISTRY = {
     description: "Large marine reptile model for AR and 3D view placement tests.",
     modelFile: "mosasaurus.glb",
     iosFile: "mosasaurus.usdz",
-    defaultScale: 1.0,
+    defaultScale: 0.65,
     view3d: {
       position: [0, 2, 0],
       scale: [10, 10, 10],
@@ -61,7 +61,7 @@ export const MODEL_REGISTRY = {
     description: "Fast predator model for AR and 3D view placement tests.",
     modelFile: "raptor.glb",
     iosFile: "raptor.usdz",
-    defaultScale: 1.0,
+    defaultScale: 0.17,
     animation: "Idle_01",
     view3d: {
       position: [0, 0, 0],
@@ -83,7 +83,7 @@ export const MODEL_REGISTRY = {
     description: "Long-necked sauropod model for AR and 3D view placement tests.",
     modelFile: "brontosaurus.glb",
     iosFile: "brontosaurus.usdz",
-    defaultScale: 1.0,
+    defaultScale: 0.52,
     view3d: {
       position: [0, 0.25, 0],
       scale: [15, 15, 15],
@@ -167,7 +167,7 @@ export const MODEL_REGISTRY = {
     description: "Small dome-headed herbivore model for AR and 3D view placement tests.",
     modelFile: "stygimoloch.glb",
     iosFile: "stygimoloch.usdz",
-    defaultScale: 1.0,
+    defaultScale: 0.55,
     view3d: {
       position: [0, 0, 0],
       scale: [8, 8, 8],
