@@ -136,7 +136,7 @@ export const IMAGE_SCAN_TARGETS = [
     trackerJpg: "tracker_jpg/Stegosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    modelScale: 1
+    modelScale: 2.5
   },
   {
     id: "styg",
@@ -144,7 +144,7 @@ export const IMAGE_SCAN_TARGETS = [
     trackerJpg: "tracker_jpg/Stygimoloch.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    modelScale: 0.3
+    modelScale: 4
   },
   {
     id: "bron",
@@ -152,7 +152,7 @@ export const IMAGE_SCAN_TARGETS = [
     trackerJpg: "tracker_jpg/Brontosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    modelScale: 1
+    modelScale: 2
   },
   {
     id: "tric",
@@ -160,7 +160,7 @@ export const IMAGE_SCAN_TARGETS = [
     trackerJpg: "tracker_jpg/Triceratops.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    modelScale: 1.25
+    modelScale: 3
   },
   {
     id: "raptor",
@@ -168,6 +168,6 @@ export const IMAGE_SCAN_TARGETS = [
     trackerJpg: "tracker_jpg/Velociraptor.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    modelScale: 2
+    modelScale: 0.34
   }
 ];
