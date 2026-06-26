@@ -10,6 +10,12 @@ export const MODEL_GATEWAY_ALLOWED_ORIGINS = ["https://bookman7705.github.io"];
 
 export const REMOTE_MODEL_PREFIX = "ar-models";
 
+/**
+ * Bump when gateway response semantics change (e.g. dropping HTTP 206) to bust
+ * browsers that cached old partial responses under immutable Cache-Control.
+ */
+export const MODEL_GATEWAY_CACHE_VERSION = 2;
+
 export function remoteModelKey(filename) {
   const name = assertValidModelFilename(filename);
   return `${REMOTE_MODEL_PREFIX}/${name}`;
@@ -17,10 +23,11 @@ export function remoteModelKey(filename) {
 
 /**
  * Stable, cache-friendly URL for a remote model file.
+ * Query string is ignored by the worker (pathname only) but busts stale browser cache entries.
  */
 export function buildRemoteModelUrl(filename) {
   const key = remoteModelKey(filename);
-  return `${MODEL_GATEWAY_ORIGIN}/${key}`;
+  return `${MODEL_GATEWAY_ORIGIN}/${key}?gw=${MODEL_GATEWAY_CACHE_VERSION}`;
 }
 
 /**
