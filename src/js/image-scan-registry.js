@@ -28,15 +28,24 @@ export function getImageScanTypeFromQuery(search = window.location.search) {
 }
 
 /**
- * Initial model rotation for image scan. X comes from the placement type; Y/Z from target config.
+ * Pitch applied once for table vs wall placement (gesture layer stays separate).
+ *
+ * @param {{ initialRotationX: number }} scanTypeConfig
+ * @returns {number}
+ */
+export function resolveImageScanPlacementRotationX(scanTypeConfig) {
+  return scanTypeConfig.initialRotationX;
+}
+
+/**
+ * Model-local Y/Z rotation from target config. Placement X is handled separately.
  *
  * @param {object} target
- * @param {{ initialRotationX: number }} scanTypeConfig
  * @returns {[number, number, number]}
  */
-export function resolveImageScanModelRotation(target, scanTypeConfig) {
+export function resolveImageScanModelRotation(target) {
   const [, ry = 0, rz = 0] = target.modelRotation ?? [0, 0, 0];
-  return [scanTypeConfig.initialRotationX, ry, rz];
+  return [0, ry, rz];
 }
 
 /**

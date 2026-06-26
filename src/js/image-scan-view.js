@@ -9,6 +9,7 @@ import {
   IMAGE_SCAN_TARGETS,
   resolveImageScanModelScale,
   resolveImageScanModelRotation,
+  resolveImageScanPlacementRotationX,
   getImageScanTypeFromQuery,
   validateImageScanTargetAssets
 } from "./image-scan-registry.js";
@@ -47,6 +48,7 @@ let scene = null;
 let camera = null;
 let anchor = null;
 let modelGroup = null;
+let placementGroup = null;
 let activeModel = null;
 let mixer = null;
 let gestureController = null;
@@ -293,6 +295,11 @@ function setupMindAR(target) {
 
   modelGroup = new THREE.Group();
   modelGroup.visible = false;
+
+  placementGroup = new THREE.Group();
+  placementGroup.rotation.x = resolveImageScanPlacementRotationX(scanTypeConfig);
+  modelGroup.add(placementGroup);
+
   anchor.group.add(modelGroup);
 
   poseStabilizer?.dispose();
@@ -335,13 +342,15 @@ function attachScanModel(target) {
 
   const model = cloneSkinnedScene(cachedModel.scene);
   const [sx, sy, sz] = resolveImageScanModelScale(target, entry);
-  const [rx, ry, rz] = resolveImageScanModelRotation(target, scanTypeConfig);
+  const [, ry, rz] = resolveImageScanModelRotation(target);
   model.scale.set(sx, sy, sz);
-  model.rotation.set(rx, ry, rz);
+  model.rotation.set(0, ry, rz);
   model.position.set(...target.modelPosition);
 
+  placementGroup.rotation.x = resolveImageScanPlacementRotationX(scanTypeConfig);
+
   modelGroup.visible = false;
-  modelGroup.add(model);
+  placementGroup.add(model);
   activeModel = model;
 
   if (cachedModel.animations.length > 0) {
@@ -369,7 +378,7 @@ function clearModelChildren() {
 
   if (activeModel) {
     disposeMeshes(activeModel);
-    modelGroup?.remove(activeModel);
+    placementGroup?.remove(activeModel);
   }
 
   activeModel = null;
@@ -429,6 +438,7 @@ async function disposeScanSession() {
   camera = null;
   anchor = null;
   modelGroup = null;
+  placementGroup = null;
   activeModel = null;
   mixer = null;
 }
