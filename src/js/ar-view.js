@@ -92,10 +92,11 @@ loadGltf(loader, selection.entry.modelFile, {
     model = gltf.scene;
     configureGltfMaterials(model, { debug: debugMaterials });
     baseScale = selection.entry.defaultScale || 0.1;
+    const contactShadow = createContactShadow(model, renderer);
     modelRoot.scale.set(baseScale, baseScale, baseScale);
     modelRoot.visible = false;
+    modelRoot.add(contactShadow);
     modelRoot.add(model);
-    modelRoot.add(createContactShadow(model, renderer));
     scene.add(modelRoot);
 
     if (gltf.animations.length > 0) {
