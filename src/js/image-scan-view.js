@@ -8,6 +8,8 @@ import {
   imageScanMindSrc,
   IMAGE_SCAN_TARGETS,
   resolveImageScanModelScale,
+  resolveImageScanModelRotation,
+  getImageScanTypeFromQuery,
   validateImageScanTargetAssets
 } from "./image-scan-registry.js";
 import { isDebugMode } from "./debug.js";
@@ -37,6 +39,7 @@ const loader = new GLTFLoader();
 const clock = new THREE.Clock();
 const debugMode = isDebugMode(window.location.search);
 const selection = getModelFromQuery(window.location.search);
+const scanTypeConfig = getImageScanTypeFromQuery(window.location.search);
 
 let mindarThree = null;
 let renderer = null;
@@ -331,8 +334,9 @@ function attachScanModel(target) {
 
   const model = cloneSkinnedScene(cachedModel.scene);
   const [sx, sy, sz] = resolveImageScanModelScale(target, entry);
+  const [rx, ry, rz] = resolveImageScanModelRotation(target, scanTypeConfig);
   model.scale.set(sx, sy, sz);
-  model.rotation.set(...target.modelRotation);
+  model.rotation.set(rx, ry, rz);
   model.position.set(...target.modelPosition);
 
   modelGroup.visible = false;

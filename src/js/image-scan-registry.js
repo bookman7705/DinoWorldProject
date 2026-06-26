@@ -5,6 +5,39 @@
 import { localRepoAssetUrl } from "./asset-urls.js";
 
 export const IMAGE_SCAN_TARGET_SIZE = 512;
+export const IMAGE_SCAN_TYPE_DEFAULT = "table";
+
+/**
+ * @typedef {"table" | "wall"} ImageScanPlacementType
+ */
+
+/**
+ * @param {string} [search]
+ * @returns {{ type: ImageScanPlacementType, initialRotationX: number }}
+ */
+export function getImageScanTypeFromQuery(search = window.location.search) {
+  const raw = (new URLSearchParams(search).get("type") || IMAGE_SCAN_TYPE_DEFAULT)
+    .trim()
+    .toLowerCase();
+  const type = raw === "wall" ? "wall" : "table";
+
+  return {
+    type,
+    initialRotationX: type === "wall" ? Math.PI / 2 : 0
+  };
+}
+
+/**
+ * Initial model rotation for image scan. X comes from the placement type; Y/Z from target config.
+ *
+ * @param {object} target
+ * @param {{ initialRotationX: number }} scanTypeConfig
+ * @returns {[number, number, number]}
+ */
+export function resolveImageScanModelRotation(target, scanTypeConfig) {
+  const [, ry = 0, rz = 0] = target.modelRotation ?? [0, 0, 0];
+  return [scanTypeConfig.initialRotationX, ry, rz];
+}
 
 /**
  * @param {object} target

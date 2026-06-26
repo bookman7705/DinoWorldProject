@@ -1,6 +1,9 @@
 import * as THREE from "three";
 import { clone as cloneSkinnedScene } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/utils/SkeletonUtils.js";
 
+/** Set to true to enable the AR floor contact shadow. */
+export const CONTACT_SHADOW_ENABLED = false;
+
 const SILHOUETTE_RESOLUTION = 256;
 const BLACK_MATERIAL = new THREE.MeshBasicMaterial({
   color: 0x000000,

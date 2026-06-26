@@ -23,5 +23,9 @@ export function buildMenuBackUrl(search = window.location.search) {
     backUrl.searchParams.set("id", entry.id);
   }
 
+  if (params.get("type")?.trim().toLowerCase() === "wall") {
+    backUrl.searchParams.set("type", "wall");
+  }
+
   return backUrl;
 }

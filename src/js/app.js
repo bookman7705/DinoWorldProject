@@ -15,10 +15,14 @@ const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 function launchImageScan({ replace = false } = {}) {
   const url = new URL("./image-scan.html", window.location.href);
+  const params = new URLSearchParams(window.location.search);
   if (isDebugMode(window.location.search)) {
     url.searchParams.set("debug", "1");
   } else if (selected.hasValidId) {
     url.searchParams.set("id", selected.entry.id);
+  }
+  if (params.get("type")?.trim().toLowerCase() === "wall") {
+    url.searchParams.set("type", "wall");
   }
   if (replace) {
     window.location.replace(url.toString());
