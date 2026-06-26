@@ -108,7 +108,7 @@ export function getImageScanTarget(id) {
 export const IMAGE_SCAN_TARGETS = [
   {
     id: "mosa",
-    mindFile: "mind/mosa.mind",
+    mindFile: "mind/bron.mind",
     trackerJpg: "tracker_jpg/Mosasaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
@@ -116,7 +116,7 @@ export const IMAGE_SCAN_TARGETS = [
   },
   {
     id: "pach",
-    mindFile: "mind/pach.mind",
+    mindFile: "mind/bron.mind",
     trackerJpg: "tracker_jpg/Pachycephalosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
@@ -124,7 +124,7 @@ export const IMAGE_SCAN_TARGETS = [
   },
   {
     id: "rex",
-    mindFile: "mind/rex.mind",
+    mindFile: "mind/bron.mind",
     trackerJpg: "tracker_jpg/Tyrannosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
@@ -132,7 +132,7 @@ export const IMAGE_SCAN_TARGETS = [
   },
   {
     id: "stega",
-    mindFile: "mind/stega.mind",
+    mindFile: "mind/bron.mind",
     trackerJpg: "tracker_jpg/Stegosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
@@ -140,7 +140,7 @@ export const IMAGE_SCAN_TARGETS = [
   },
   {
     id: "styg",
-    mindFile: "mind/styg.mind",
+    mindFile: "mind/bron.mind",
     trackerJpg: "tracker_jpg/Stygimoloch.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
@@ -156,7 +156,7 @@ export const IMAGE_SCAN_TARGETS = [
   },
   {
     id: "tric",
-    mindFile: "mind/tric.mind",
+    mindFile: "mind/bron.mind",
     trackerJpg: "tracker_jpg/Triceratops.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
@@ -164,7 +164,7 @@ export const IMAGE_SCAN_TARGETS = [
   },
   {
     id: "raptor",
-    mindFile: "mind/raptor.mind",
+    mindFile: "mind/bron.mind",
     trackerJpg: "tracker_jpg/Velociraptor.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
