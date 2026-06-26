@@ -9,15 +9,18 @@ const MAX_GESTURE_SCALE = 4;
 /**
  * Pinch-to-scale and single-finger horizontal swipe rotation for image-scan models.
  * Transforms apply to gestureRoot (child of the MindAR anchor group).
- * MindAR image anchors use XY for the target plane with Z normal to the image,
- * so horizontal swipes rotate around Z (turntable spin on the tracking image).
+ * MindAR image anchors use XY for the target plane with Z normal to the image.
+ * Table: swipe rotates around Z (turntable on a flat target).
+ * Wall: swipe rotates around Y (spin on a vertical target).
  */
 export function createImageScanGestureController({
   getGestureRoot,
   isInteractionEnabled,
   onGestureScaleChange,
+  placementType = "table",
   touchTarget = window
 } = {}) {
+  const rotateAxis = placementType === "wall" ? "y" : "z";
   let gestureScaleFactor = 1;
 
   const gesture = {
@@ -152,7 +155,7 @@ export function createImageScanGestureController({
     }
 
     event.preventDefault();
-    root.rotation.z += dx * ROTATE_RADIANS_PER_PX;
+    root.rotation[rotateAxis] += dx * ROTATE_RADIANS_PER_PX;
     gesture.lastScreenX = touch.pageX;
   }
 
