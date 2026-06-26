@@ -6,17 +6,17 @@ const ROTATE_RADIANS_PER_PX = 0.008;
 const MIN_GESTURE_SCALE = 0.25;
 const MAX_GESTURE_SCALE = 4;
 
-const TABLE_ROTATE_AXIS = new THREE.Vector3(0, 0, 1);
-const WALL_ROTATE_AXIS = new THREE.Vector3(0, 1, 0);
+const TABLE_YAW_AXIS = new THREE.Vector3(0, 0, 1);
+const WALL_YAW_AXIS = new THREE.Vector3(0, 1, 0);
 
 /**
  * Pinch-to-scale and single-finger horizontal swipe rotation for image-scan models.
  * Transforms apply to gestureRoot (child of the MindAR anchor group).
  *
  * Placement pitch (table vs wall) lives on a child group; this layer only handles
- * user scale and left/right yaw in anchor space:
- * - table: spin around Z (normal to a flat target)
- * - wall: spin around Y (vertical on a wall target)
+ * user scale and left/right yaw in anchor/world space via rotateOnWorldAxis:
+ * - table: yaw around Z (spin on a flat target)
+ * - wall: yaw around Y (turn left/right on a vertical target)
  */
 export function createImageScanGestureController({
   getGestureRoot,
@@ -25,7 +25,7 @@ export function createImageScanGestureController({
   placementType = "table",
   touchTarget = window
 } = {}) {
-  const rotateAxis = placementType === "wall" ? WALL_ROTATE_AXIS : TABLE_ROTATE_AXIS;
+  const yawAxis = placementType === "wall" ? WALL_YAW_AXIS : TABLE_YAW_AXIS;
   let gestureScaleFactor = 1;
 
   const gesture = {
@@ -160,7 +160,7 @@ export function createImageScanGestureController({
     }
 
     event.preventDefault();
-    root.rotateOnAxis(rotateAxis, dx * ROTATE_RADIANS_PER_PX);
+    root.rotateOnWorldAxis(yawAxis, dx * ROTATE_RADIANS_PER_PX);
     gesture.lastScreenX = touch.pageX;
   }
 

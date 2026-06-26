@@ -23,7 +23,7 @@ export function getImageScanTypeFromQuery(search = window.location.search) {
 
   return {
     type,
-    initialRotationX: type === "wall" ? Math.PI / 2 : 0
+    initialRotationX: type === "table" ? Math.PI / 2 : 0
   };
 }
 
