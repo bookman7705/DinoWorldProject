@@ -109,7 +109,11 @@ function bakeFootprintTexture(model, bounds, renderer) {
     }
   });
 
-  scene.add(bakeRoot);
+  const testBox = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.5, 0.5),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  scene.add(testBox);
 
   if (meshCount === 0) {
     return createFallbackShadowTexture(size);
