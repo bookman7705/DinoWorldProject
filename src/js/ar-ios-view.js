@@ -1,5 +1,5 @@
 import { getModelFromQuery } from "./model-registry.js";
-import { resolveModelUrl } from "./resolve-model-url.js";
+import { resolveModelObjectUrl } from "./resolve-model-url.js";
 import { buildMenuBackUrl } from "./menu-navigation.js";
 
 const titleEl = document.getElementById("ar-model-name");
@@ -35,11 +35,11 @@ let iosSrcUrl = null;
 
 async function initViewer() {
   try {
-    const modelUrl = await resolveModelUrl(selection.entry.modelFile);
+    const modelUrl = await resolveModelObjectUrl(selection.entry.modelFile);
     viewer.src = modelUrl;
 
     if (selection.entry.iosFile) {
-      iosSrcUrl = await resolveModelUrl(selection.entry.iosFile);
+      iosSrcUrl = await resolveModelObjectUrl(selection.entry.iosFile);
       viewer.setAttribute("ios-src", iosSrcUrl);
     }
   } catch (error) {

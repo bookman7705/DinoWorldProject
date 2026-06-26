@@ -1,4 +1,5 @@
 import { assertValidModelFilename } from "./asset-urls.js";
+import { configureModelLoaderAuth } from "./model-download.js";
 import { resolveModelUrl } from "./resolve-model-url.js";
 
 export function getModelFilename(urlOrFilename) {
@@ -18,27 +19,31 @@ export function getModelFilename(urlOrFilename) {
 }
 
 /**
- * Load a GLB/GLTF. URL comes from local ./models override or Cloudflare R2 signed URLs.
+ * Load a GLB/GLTF. URL comes from local ./models override or the Cloudflare download gateway.
  */
 export function loadGltf(loader, modelFilename, { onLoad, onError } = {}) {
   let filename;
 
   try {
     filename = getModelFilename(modelFilename);
+    configureModelLoaderAuth(loader);
   } catch (error) {
     onError?.(error, []);
     return;
   }
 
-  void resolveModelUrl(filename)
-    .then((url) => {
-      loader.load(url, onLoad, undefined, (error) => {
-        console.error(`[gltf] Load failed for ${filename}`, error);
-        onError?.(error, [url]);
-      });
-    })
-    .catch((error) => {
-      console.error(`[gltf] Could not resolve signed URL for ${filename}`, error);
-      onError?.(error, []);
-    });
+  let url;
+
+  try {
+    url = resolveModelUrl(filename);
+  } catch (error) {
+    console.error(`[gltf] Could not resolve model URL for ${filename}`, error);
+    onError?.(error, []);
+    return;
+  }
+
+  loader.load(url, onLoad, undefined, (error) => {
+    console.error(`[gltf] Load failed for ${filename}`, error);
+    onError?.(error, [url]);
+  });
 }
