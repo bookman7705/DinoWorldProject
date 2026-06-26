@@ -256,6 +256,13 @@ h1 {
   min-height: 100%;
 }
 
+.image-scan-body.scan-session-active #scan-menu,
+#scan-menu[hidden] {
+  display: none !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .scan-back-btn {
   position: fixed;
   top: max(12px, env(safe-area-inset-top));

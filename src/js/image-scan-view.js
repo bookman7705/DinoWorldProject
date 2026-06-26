@@ -342,6 +342,18 @@ function clearModelChildren() {
   activeModel = null;
 }
 
+function stopContainerMediaStreams(container) {
+  for (const video of container.querySelectorAll("video")) {
+    const stream = video.srcObject;
+    if (stream instanceof MediaStream) {
+      for (const track of stream.getTracks()) {
+        track.stop();
+      }
+    }
+    video.srcObject = null;
+  }
+}
+
 async function disposeScanSession() {
   sessionRunning = false;
   activeTarget = null;
@@ -349,22 +361,29 @@ async function disposeScanSession() {
   gestureController?.dispose();
   gestureController = null;
   hideScanDebug();
+  setHint("");
 
   if (mindarThree) {
     try {
-      mindarThree.stop();
+      await mindarThree.stop();
     } catch (error) {
       console.warn("MindAR stop:", error);
     }
   }
 
-  if (activeModel) {
-    disposeMeshes(activeModel);
-  }
+  clearModelChildren();
 
   if (cachedModel) {
     disposeMeshes(cachedModel.scene);
     cachedModel = null;
+  }
+
+  stopContainerMediaStreams(mindarContainer);
+
+  try {
+    renderer?.dispose();
+  } catch (error) {
+    console.warn("Renderer dispose:", error);
   }
 
   mindarContainer.replaceChildren();
@@ -377,6 +396,12 @@ async function disposeScanSession() {
   modelGroup = null;
   activeModel = null;
   mixer = null;
+}
+
+function exitToMainMenu() {
+  void disposeScanSession().then(() => {
+    window.location.href = buildMenuBackUrl(window.location.search).toString();
+  });
 }
 
 function onTargetFound(target) {
@@ -488,22 +513,17 @@ async function startScanSession(target) {
 
 initScanMenu();
 
-menuBackBtn.addEventListener("click", () => {
-  void disposeScanSession().then(() => {
-    window.location.href = buildMenuBackUrl(window.location.search).toString();
-  });
-});
-
-scanBackBtn.addEventListener("click", async () => {
-  await disposeScanSession();
-  showMenu();
-});
+menuBackBtn.addEventListener("click", exitToMainMenu);
+scanBackBtn.addEventListener("click", exitToMainMenu);
 
 startScanBtn.addEventListener("click", async () => {
   startScanBtn.disabled = true;
+  showScanner();
+
   try {
     const target = await resolveScanTarget();
     if (!target) {
+      showMenu();
       startScanBtn.disabled = false;
       return;
     }
