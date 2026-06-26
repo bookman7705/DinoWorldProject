@@ -272,7 +272,7 @@ h1 {
 
 .scan-scale {
   position: fixed;
-  top: max(56px, calc(env(safe-area-inset-top) + 44px));
+  top: max(72px, calc(env(safe-area-inset-top) + 60px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -412,10 +412,21 @@ h1 {
   align-self: flex-start;
   border: 0;
   border-radius: 999px;
-  padding: 10px 14px;
+  padding: 16px 28px;
+  min-height: 52px;
+  min-width: 96px;
+  font-size: 17px;
+  line-height: 1.2;
   font-weight: 700;
   color: var(--text);
-  background: rgba(10, 18, 27, 0.8);
+  background: rgba(10, 18, 27, 0.88);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+}
+
+.overlay-btn:active {
+  transform: scale(0.98);
 }
 
 .overlay-panel {

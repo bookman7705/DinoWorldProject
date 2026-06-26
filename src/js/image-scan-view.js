@@ -22,6 +22,7 @@ import { loadGltf } from "./gltf-loader.js";
 import { configureGltfMaterials } from "./gltf-materials.js";
 import { playModelAnimation } from "./gltf-animations.js";
 import { createImageScanGestureController } from "./image-scan-gestures.js";
+import { createImageScanPoseStabilizer } from "./image-scan-pose-stabilizer.js";
 
 const scanMenu = document.getElementById("scan-menu");
 const scanSubtitleEl = document.getElementById("scan-subtitle");
@@ -46,6 +47,7 @@ let modelGroup = null;
 let activeModel = null;
 let mixer = null;
 let gestureController = null;
+let poseStabilizer = null;
 let cachedModel = null;
 let activeTarget = null;
 let sessionRunning = false;
@@ -265,7 +267,9 @@ function setupMindAR(target) {
     container: mindarContainer,
     imageTargetSrc: mindUrl,
     filterMinCF: 0.0001,
-    filterBeta: 0.01
+    filterBeta: 0.01,
+    warmupTolerance: 8,
+    missTolerance: 5
   });
 
   if (prefersUserFacingCamera()) {
@@ -284,7 +288,30 @@ function setupMindAR(target) {
   anchor = mindarThree.addAnchor(0);
 
   modelGroup = new THREE.Group();
+  modelGroup.visible = false;
   anchor.group.add(modelGroup);
+
+  poseStabilizer?.dispose();
+  poseStabilizer = createImageScanPoseStabilizer({
+    getAnchorGroup: () => anchor?.group,
+    getModelGroup: () => modelGroup,
+    onPhaseChange: (phase) => {
+      if (!sessionRunning || !activeTarget) {
+        return;
+      }
+
+      if (phase === "warming") {
+        setHint("Aligning model to tracking image…", "scanning");
+        return;
+      }
+
+      if (phase === "stable") {
+        gestureController?.resetTransforms();
+        const label = MODEL_REGISTRY[activeTarget]?.label ?? activeTarget;
+        setHint(`Tracking image found — ${label}`, "found");
+      }
+    }
+  });
 
   anchor.onTargetFound = () => onTargetFound(target);
   anchor.onTargetLost = () => onTargetLost(target);
@@ -308,6 +335,7 @@ function attachScanModel(target) {
   model.rotation.set(...target.modelRotation);
   model.position.set(...target.modelPosition);
 
+  modelGroup.visible = false;
   modelGroup.add(model);
   activeModel = model;
 
@@ -360,6 +388,8 @@ async function disposeScanSession() {
   renderer?.setAnimationLoop(null);
   gestureController?.dispose();
   gestureController = null;
+  poseStabilizer?.dispose();
+  poseStabilizer = null;
   hideScanDebug();
   setHint("");
 
@@ -415,7 +445,12 @@ function onTargetFound(target) {
 
   activeTarget = target.id;
   const label = MODEL_REGISTRY[target.id]?.label ?? target.id;
-  setHint(`Tracking image found — ${label}`, "found");
+
+  if (poseStabilizer?.getPhase() === "stable") {
+    setHint(`Tracking image found — ${label}`, "found");
+  } else {
+    setHint("Aligning model to tracking image…", "scanning");
+  }
 
   if (debugMode) {
     updateScanScaleDisplay(gestureController?.getGestureScaleFactor() ?? 1);
@@ -432,6 +467,7 @@ function onTargetLost(target) {
   scanDebug?.log("target lost", { count: scanDebugState.lostCount });
 
   activeTarget = null;
+  poseStabilizer?.reset();
   setHint("Tracking image lost — scanning…", "scanning");
   scanScaleEl.hidden = true;
 }
@@ -503,6 +539,7 @@ async function startScanSession(target) {
 
     const delta = clock.getDelta();
     mixer?.update(delta);
+    poseStabilizer?.update();
     renderer.render(scene, camera);
   });
 
