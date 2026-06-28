@@ -1,10 +1,25 @@
 import * as THREE from "three";
 
-/** Lerp factor toward detected surface pose (Scene Viewer–like smoothing). */
-const DRAG_SMOOTH_FACTOR = 0.2;
+/** Horizontal follow responsiveness. */
+const DRAG_XZ_LERP = 0.35;
+
+/** Height anchoring — kept lower to avoid aggressive Y snaps. */
+const DRAG_Y_LERP = 0.12;
 
 /** Minimum |normal·up| to treat a plane as horizontal. */
-const HORIZONTAL_NORMAL_DOT = 0.8;
+const HORIZONTAL_NORMAL_DOT = 0.85;
+
+/** Reject hit-test points too far from the model in XZ. */
+const MAX_HIT_XZ_FROM_MODEL = 0.75;
+
+/** Max horizontal travel per frame (prevents single-frame leaps). */
+const MAX_FRAME_XZ_DELTA = 0.18;
+
+/** Max vertical travel per frame when anchoring to a surface. */
+const MAX_FRAME_Y_DELTA = 0.08;
+
+/** Max |hit.y − activePlaneY| to accept without gradual transition. */
+const MAX_Y_FROM_ACTIVE_PLANE = 0.35;
 
 /**
  * Surface-aware drag controller for Android WebXR.
@@ -29,6 +44,7 @@ export function createArDragController({
   const fingerToModelOffset = new THREE.Vector3();
   const targetPosition = new THREE.Vector3();
   const hitPosition = new THREE.Vector3();
+  const frameDelta = new THREE.Vector3();
 
   let transientHitTestSource = null;
   let activePlaneY = 0;
@@ -80,6 +96,12 @@ export function createArDragController({
     return dragRaycaster.ray.intersectPlane(dragPlane, out) !== null;
   }
 
+  function horizontalDistanceToModel(hitPos, modelPos) {
+    const dx = hitPos.x - modelPos.x;
+    const dz = hitPos.z - modelPos.z;
+    return Math.hypot(dx, dz);
+  }
+
   /**
    * Collect horizontal hit candidates from transient touch rays.
    */
@@ -88,15 +110,23 @@ export function createArDragController({
       return null;
     }
 
+    const modelRoot = getModelRoot();
+    if (!modelRoot) {
+      return null;
+    }
+
     const transientResults = frame.getHitTestResultsForTransientInput(transientHitTestSource);
-    return chooseBestHorizontalHit(transientResults, localSpace);
+    return chooseBestHorizontalHit(transientResults, localSpace, modelRoot.position);
   }
 
   /**
-   * Prefer the nearest horizontal plane hit along each transient input ray.
-   * WebXR returns results sorted by distance; the first horizontal hit is used.
+   * Pick the horizontal hit nearest the model in XZ, rejecting distant/outlier surfaces.
+   * Avoids snapping to a far floor/wall plane that happens to appear first along the touch ray.
    */
-  function chooseBestHorizontalHit(transientResults, localSpace) {
+  function chooseBestHorizontalHit(transientResults, localSpace, modelPos) {
+    let bestHit = null;
+    let bestScore = Infinity;
+
     for (const bundle of transientResults) {
       for (const hit of bundle.results) {
         const pose = hit.getPose(localSpace);
@@ -110,34 +140,80 @@ export function createArDragController({
         }
 
         tmpMatrix.decompose(hitPosition, tmpQuaternion, tmpScale);
-        return {
-          pose,
-          position: hitPosition.clone()
-        };
+
+        const xzDist = horizontalDistanceToModel(hitPosition, modelPos);
+        if (xzDist > MAX_HIT_XZ_FROM_MODEL) {
+          continue;
+        }
+
+        const yDelta = Math.abs(hitPosition.y - activePlaneY);
+        // Allow larger height changes only when the hit is directly under/near the model
+        // (intentional table → floor transition). Reject distant planes with large Y gaps.
+        const maxAllowedY =
+          xzDist < 0.35 ? MAX_Y_FROM_ACTIVE_PLANE * 2.5 : MAX_Y_FROM_ACTIVE_PLANE;
+        if (yDelta > maxAllowedY) {
+          continue;
+        }
+
+        // Prefer hits under/near the model; penalize large height discrepancies.
+        const score = xzDist + yDelta * 2;
+        if (score < bestScore) {
+          bestScore = score;
+          bestHit = {
+            pose,
+            position: hitPosition.clone()
+          };
+        }
       }
     }
 
-    return null;
+    return bestHit;
   }
 
   /**
-   * Full target position on the detected surface, preserving finger-to-model offset.
-   * Orientation stays upright (Y rotation only, preserved by caller).
+   * Target on the detected surface using horizontal finger offset only (Y comes from the plane).
    */
   function computeTargetDragPose(surfacePoint) {
-    targetPosition.copy(surfacePoint).add(fingerToModelOffset);
+    targetPosition.set(
+      surfacePoint.x + fingerToModelOffset.x,
+      surfacePoint.y,
+      surfacePoint.z + fingerToModelOffset.z
+    );
     return targetPosition;
   }
 
+  /**
+   * Move toward the target with separate, clamped XZ and Y steps.
+   */
   function smoothMoveModel(modelRoot, target) {
-    modelRoot.position.lerp(target, DRAG_SMOOTH_FACTOR);
+    const current = modelRoot.position;
+
+    frameDelta.set(
+      target.x - current.x,
+      target.y - current.y,
+      target.z - current.z
+    );
+
+    const xzLen = Math.hypot(frameDelta.x, frameDelta.z);
+    if (xzLen > MAX_FRAME_XZ_DELTA) {
+      const scale = MAX_FRAME_XZ_DELTA / xzLen;
+      frameDelta.x *= scale;
+      frameDelta.z *= scale;
+    }
+
+    frameDelta.y = THREE.MathUtils.clamp(frameDelta.y, -MAX_FRAME_Y_DELTA, MAX_FRAME_Y_DELTA);
+
+    current.x += frameDelta.x * DRAG_XZ_LERP;
+    current.z += frameDelta.z * DRAG_XZ_LERP;
+    current.y += frameDelta.y * DRAG_Y_LERP;
+
     modelRoot.rotation.x = 0;
     modelRoot.rotation.z = 0;
   }
 
   /**
    * Legacy drag-plane translation when transient hit tests are unavailable or miss.
-   * Uses activePlaneY, which updates whenever a surface hit is detected.
+   * Uses activePlaneY, which updates whenever a validated surface hit is detected.
    */
   function fallbackDragPlaneTranslation(screenX, screenY) {
     const modelRoot = getModelRoot();
@@ -156,8 +232,18 @@ export function createArDragController({
       return;
     }
 
-    modelRoot.position.x += dragWorldPoint.x - gesture.lastDragWorldX;
-    modelRoot.position.z += dragWorldPoint.z - gesture.lastDragWorldZ;
+    const dx = dragWorldPoint.x - gesture.lastDragWorldX;
+    const dz = dragWorldPoint.z - gesture.lastDragWorldZ;
+    const stepLen = Math.hypot(dx, dz);
+    if (stepLen > MAX_FRAME_XZ_DELTA) {
+      const scale = MAX_FRAME_XZ_DELTA / stepLen;
+      modelRoot.position.x += dx * scale;
+      modelRoot.position.z += dz * scale;
+    } else {
+      modelRoot.position.x += dx;
+      modelRoot.position.z += dz;
+    }
+
     modelRoot.position.y = activePlaneY;
 
     gesture.lastDragWorldX = dragWorldPoint.x;
@@ -165,7 +251,7 @@ export function createArDragController({
   }
 
   /**
-   * Capture finger-to-model offset when a drag begins so the model stays under the finger.
+   * Capture horizontal finger-to-model offset when a drag begins.
    */
   function establishDragOffset(frame, localSpace) {
     const modelRoot = getModelRoot();
@@ -177,7 +263,11 @@ export function createArDragController({
 
     const hit = frame ? updateDragHitTest(frame, localSpace) : null;
     if (hit) {
-      fingerToModelOffset.copy(modelRoot.position).sub(hit.position);
+      fingerToModelOffset.set(
+        modelRoot.position.x - hit.position.x,
+        0,
+        modelRoot.position.z - hit.position.z
+      );
       hasFingerOffset = true;
       activePlaneY = hit.position.y;
       return;
@@ -186,13 +276,17 @@ export function createArDragController({
     if (
       screenPointToWorldOnPlane(gesture.activeTouchX, gesture.activeTouchY, activePlaneY, dragWorldPoint)
     ) {
-      fingerToModelOffset.copy(modelRoot.position).sub(dragWorldPoint);
+      fingerToModelOffset.set(
+        modelRoot.position.x - dragWorldPoint.x,
+        0,
+        modelRoot.position.z - dragWorldPoint.z
+      );
       hasFingerOffset = true;
     }
   }
 
   /**
-   * Per-frame drag update: transient surface hits with smoothing, else fallback plane drag.
+   * Per-frame drag update: validated transient hits with constrained smoothing, else fallback.
    */
   function updateSurfaceDrag(frame, localSpace) {
     if (!isPlaced() || !gesture.moving) {
@@ -210,14 +304,13 @@ export function createArDragController({
 
     const hit = updateDragHitTest(frame, localSpace);
     if (hit) {
-      // Switch drag plane to the newly detected surface (table → floor, etc.).
       activePlaneY = hit.position.y;
+      gesture.hasDragWorldAnchor = false;
       const target = computeTargetDragPose(hit.position);
       smoothMoveModel(modelRoot, target);
       return;
     }
 
-    // Transient source missing or no surface under the finger — use drag-plane fallback.
     fallbackDragPlaneTranslation(gesture.activeTouchX, gesture.activeTouchY);
   }
 
