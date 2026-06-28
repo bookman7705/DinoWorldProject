@@ -32,7 +32,7 @@ const tmpQuaternion = new THREE.Quaternion();
 const tmpScale = new THREE.Vector3();
 const tmpNormal = new THREE.Vector3();
 const camRight = new THREE.Vector3();
-const camForward = new THREE.Vector3();
+const camLook = new THREE.Vector3();
 
 function isHorizontalPoseFromMatrix(matrix) {
   matrix.decompose(tmpPosition, tmpQuaternion, tmpScale);
@@ -133,7 +133,7 @@ export function orientScreenDelta(deltaX, deltaY) {
 }
 
 /**
- * Camera-aligned XZ drag — viewport deltas map directly to on-screen directions.
+ * Camera-aligned XZ drag — screen X/Y mapped via view forward (works in portrait + landscape).
  */
 export function updateDragFromGesture(gesture, modelRoot, camera) {
   if (!gesture.dragging || !modelRoot) {
@@ -147,23 +147,19 @@ export function updateDragFromGesture(gesture, modelRoot, camera) {
   }
 
   camera.updateMatrixWorld();
-  camRight.setFromMatrixColumn(camera.matrixWorld, 0);
-  camRight.y = 0;
-  if (camRight.lengthSq() < 1e-8) {
+  camera.getWorldDirection(camLook);
+  camLook.y = 0;
+  if (camLook.lengthSq() < 1e-8) {
     return;
   }
-  camRight.normalize();
+  camLook.normalize();
 
-  camForward.setFromMatrixColumn(camera.matrixWorld, 2);
-  camForward.y = 0;
-  if (camForward.lengthSq() < 1e-8) {
-    return;
-  }
-  camForward.normalize();
+  // Screen-right on the ground plane (perpendicular to view, invariant to device roll).
+  camRight.crossVectors(camLook, worldUp).normalize();
 
   const scale = PX_TO_WORLD;
-  modelRoot.position.x += camRight.x * deltaX * scale + camForward.x * deltaY * scale;
-  modelRoot.position.z += camRight.z * deltaX * scale + camForward.z * deltaY * scale;
+  modelRoot.position.x += (camRight.x * deltaX - camLook.x * deltaY) * scale;
+  modelRoot.position.z += (camRight.z * deltaX - camLook.z * deltaY) * scale;
 
   gesture.pendingDeltaX = 0;
   gesture.pendingDeltaY = 0;
