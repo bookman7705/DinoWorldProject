@@ -3,6 +3,7 @@ import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/js
 import { ARButton } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/webxr/ARButton.js";
 import { getModelFromQuery } from "./model-registry.js";
 import { buildMenuBackUrl } from "./menu-navigation.js";
+import { isDebugMode } from "./debug.js";
 import { loadGltf } from "./gltf-loader.js";
 import { playModelAnimation } from "./gltf-animations.js";
 import {
@@ -32,6 +33,11 @@ const scaleEl = document.getElementById("ar-scale");
 const backBtn = document.getElementById("back-btn");
 const touchLayer = document.getElementById("ar-touch-layer");
 const copyUrlBtn = document.getElementById("copy-ar-url-btn");
+const debugMode = isDebugMode(window.location.search);
+
+if (scaleEl && !debugMode) {
+  scaleEl.hidden = true;
+}
 
 backBtn.addEventListener("click", () => {
   window.location.href = buildMenuBackUrl(window.location.search).toString();
@@ -151,7 +157,7 @@ let baseScale = 0.1;
 let needsGroundLock = false;
 
 function updateScaleDisplay() {
-  if (!modelRoot || !placed || !scaleEl) {
+  if (!debugMode || !modelRoot || !placed || !scaleEl) {
     return;
   }
 

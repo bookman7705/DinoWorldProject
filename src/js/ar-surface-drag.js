@@ -244,6 +244,16 @@ export function processTwoFingerGesture(
 
   gesture.scaleAccumDev = Math.max(gesture.scaleAccumDev, scaleDev);
 
+  if (gesture.rotating) {
+    if (framePinchChange < PINCH_FRAME_STABLE_RATIO && angleDelta !== 0) {
+      gesture.pendingRotationRad += angleDelta;
+    }
+
+    gesture.lastDistance = metrics.distance;
+    gesture.lastAngle = metrics.angle;
+    return;
+  }
+
   const pinchReady = gesture.scaleAccumDev > scaleDeadZoneRatio;
   const twistReady = gesture.rotateAccumRad >= rotateDeadZoneRad;
 
@@ -263,7 +273,7 @@ export function processTwoFingerGesture(
 }
 
 export function applyScaleFromGesture(gesture, modelRoot) {
-  if (!modelRoot || gesture.pendingScaleRatio === 1) return false;
+  if (!modelRoot || gesture.rotating || gesture.pendingScaleRatio === 1) return false;
 
   const frameRatio = clampScaleRatio(gesture.pendingScaleRatio);
   const nextScale = THREE.MathUtils.clamp(
@@ -290,7 +300,7 @@ export function updateModelGrounding(modelRoot, gesture, camera) {
   applyRotationFromGesture(gesture, modelRoot);
   const didScale = applyScaleFromGesture(gesture, modelRoot);
 
-  if (gesture.dragging && !gesture.twoFinger) {
+  if (gesture.dragging && !movementBlocked(gesture)) {
     updateDragFromGesture(gesture, modelRoot, camera);
   }
 
@@ -376,7 +386,7 @@ export function clearGesture(gesture) {
 }
 
 export function movementBlocked(gesture) {
-  return gesture.twoFinger;
+  return gesture.twoFinger || gesture.rotating;
 }
 
 export function accumulateSingleTouchMove(gesture, touch) {
