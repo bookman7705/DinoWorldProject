@@ -99,32 +99,41 @@ export function lockGroundAtPlacement(frame, hitTestSource, localSpace, modelRoo
   }
 }
 
+/** Per-frame finger separation change below this is treated as twist, not pinch. */
+const PINCH_FRAME_STABLE_RATIO = 0.005;
+
 /** Device orientation angle in radians (0 = portrait). */
+export function getScreenOrientationAngleDeg() {
+  if (typeof screen !== "undefined" && screen.orientation?.angle != null) {
+    return screen.orientation.angle;
+  }
+  return window.innerWidth > window.innerHeight ? 90 : 0;
+}
+
 export function getScreenOrientationRad() {
-  const angle =
-    typeof screen !== "undefined" && screen.orientation?.angle != null
-      ? screen.orientation.angle
-      : window.innerWidth > window.innerHeight
-        ? 90
-        : 0;
-  return (angle * Math.PI) / 180;
+  return (getScreenOrientationAngleDeg() * Math.PI) / 180;
 }
 
 /**
- * Map viewport pixel delta to device-aligned screen axes (portrait/landscape safe).
+ * Rotate a screen-space vector from viewport coords into device-native axes.
  */
-export function orientScreenDelta(deltaX, deltaY) {
-  const theta = getScreenOrientationRad();
+export function orientTouchVector(dx, dy) {
+  const theta = -getScreenOrientationRad();
   const cos = Math.cos(theta);
   const sin = Math.sin(theta);
   return {
-    x: deltaX * cos + deltaY * sin,
-    y: -deltaX * sin + deltaY * cos
+    x: dx * cos - dy * sin,
+    y: dx * sin + dy * cos
   };
 }
 
+/** @deprecated Use orientTouchVector */
+export function orientScreenDelta(deltaX, deltaY) {
+  return orientTouchVector(deltaX, deltaY);
+}
+
 /**
- * Camera-aligned XZ drag using world matrix axes (consistent in portrait and landscape).
+ * Camera-aligned XZ drag — viewport deltas map directly to on-screen directions.
  */
 export function updateDragFromGesture(gesture, modelRoot, camera) {
   if (!gesture.dragging || !modelRoot) {
@@ -136,8 +145,6 @@ export function updateDragFromGesture(gesture, modelRoot, camera) {
   if (deltaX === 0 && deltaY === 0) {
     return;
   }
-
-  const oriented = orientScreenDelta(deltaX, deltaY);
 
   camera.updateMatrixWorld();
   camRight.setFromMatrixColumn(camera.matrixWorld, 0);
@@ -155,8 +162,8 @@ export function updateDragFromGesture(gesture, modelRoot, camera) {
   camForward.normalize();
 
   const scale = PX_TO_WORLD;
-  modelRoot.position.x += camRight.x * oriented.x * scale + camForward.x * oriented.y * scale;
-  modelRoot.position.z += camRight.z * oriented.x * scale + camForward.z * oriented.y * scale;
+  modelRoot.position.x += camRight.x * deltaX * scale + camForward.x * deltaY * scale;
+  modelRoot.position.z += camRight.z * deltaX * scale + camForward.z * deltaY * scale;
 
   gesture.pendingDeltaX = 0;
   gesture.pendingDeltaY = 0;
@@ -169,6 +176,10 @@ function normalizeAngle(angle) {
   return result;
 }
 
+function pinchSpanFromOriented(oriented, axis) {
+  return axis === "x" ? Math.abs(oriented.x) : Math.abs(oriented.y);
+}
+
 function resetTwoFingerAccumulators(gesture) {
   gesture.twoFingerMode = null;
   gesture.scaling = false;
@@ -177,6 +188,9 @@ function resetTwoFingerAccumulators(gesture) {
   gesture.pendingRotationRad = 0;
   gesture.rotateAccumRad = 0;
   gesture.scaleAccumDev = 0;
+  gesture.pinchAxis = null;
+  gesture.startPinchSpan = 0;
+  gesture.lastPinchSpan = 0;
   gesture.startDistance = 0;
 }
 
@@ -199,19 +213,27 @@ export function processTwoFingerGesture(
   } = {}
 ) {
   const frameScaleRatio = metrics.distance / Math.max(gesture.lastDistance, 1);
+  const pinchSpan = pinchSpanFromOriented(metrics.oriented, gesture.pinchAxis);
+  const framePinchRatio = pinchSpan / Math.max(gesture.lastPinchSpan, 1);
   const angleDelta = normalizeAngle(metrics.angle - gesture.lastAngle);
-  const totalScaleRatio = metrics.distance / Math.max(gesture.startDistance, 1);
-  const scaleDev = Math.abs(totalScaleRatio - 1);
+  const totalPinchRatio = pinchSpan / Math.max(gesture.startPinchSpan, 1);
+  const scaleDev = Math.abs(totalPinchRatio - 1);
+  const framePinchChange = Math.abs(frameScaleRatio - 1);
 
-  gesture.rotateAccumRad += Math.abs(angleDelta);
+  if (framePinchChange < PINCH_FRAME_STABLE_RATIO) {
+    gesture.rotateAccumRad += Math.abs(angleDelta);
+  }
   gesture.scaleAccumDev = Math.max(gesture.scaleAccumDev, scaleDev);
 
   if (!gesture.twoFingerMode) {
-    if (gesture.rotateAccumRad >= rotateDeadZoneRad) {
+    const twistReady = gesture.rotateAccumRad >= rotateDeadZoneRad;
+    const pinchReady = gesture.scaleAccumDev > scaleDeadZoneRatio;
+
+    if (twistReady) {
       gesture.twoFingerMode = "rotate";
       gesture.rotating = true;
       gesture.scaling = false;
-    } else if (gesture.scaleAccumDev > scaleDeadZoneRatio) {
+    } else if (pinchReady) {
       gesture.twoFingerMode = "scale";
       gesture.scaling = true;
       gesture.rotating = false;
@@ -219,7 +241,8 @@ export function processTwoFingerGesture(
   }
 
   if (gesture.twoFingerMode === "scale") {
-    gesture.pendingScaleRatio *= frameScaleRatio;
+    gesture.pendingScaleRatio *= framePinchRatio;
+    gesture.lastPinchSpan = pinchSpan;
   } else if (angleDelta !== 0) {
     gesture.pendingRotationRad += angleDelta;
     if (gesture.twoFingerMode === "rotate") {
@@ -305,6 +328,9 @@ export function createGestureState() {
     dragAccumPx: 0,
     rotateAccumRad: 0,
     scaleAccumDev: 0,
+    pinchAxis: null,
+    startPinchSpan: 0,
+    lastPinchSpan: 0,
     startDistance: 0,
     lastDistance: 0,
     lastAngle: 0
@@ -334,6 +360,9 @@ export function resetTwoFinger(gesture, touches, getTouchMetrics) {
   gesture.pendingDeltaX = 0;
   gesture.pendingDeltaY = 0;
   resetTwoFingerAccumulators(gesture);
+  gesture.pinchAxis = Math.abs(metrics.oriented.x) >= Math.abs(metrics.oriented.y) ? "x" : "y";
+  gesture.startPinchSpan = Math.max(pinchSpanFromOriented(metrics.oriented, gesture.pinchAxis), 1);
+  gesture.lastPinchSpan = gesture.startPinchSpan;
   gesture.startDistance = metrics.distance;
   gesture.lastDistance = metrics.distance;
   gesture.lastAngle = metrics.angle;
@@ -383,13 +412,15 @@ export function accumulateSingleTouchMove(gesture, touch) {
 }
 
 /**
- * Orientation-aware two-finger metrics (distance + finger-line angle).
+ * Two-finger metrics with device-oriented separation for scale (portrait + landscape).
  */
 export function getTwoFingerMetrics(touchA, touchB) {
   const dx = touchB.clientX - touchA.clientX;
   const dy = touchB.clientY - touchA.clientY;
+  const oriented = orientTouchVector(dx, dy);
   return {
     distance: Math.hypot(dx, dy),
+    oriented,
     angle: Math.atan2(dy, dx)
   };
 }
