@@ -7,12 +7,70 @@ import { createAltDownloadProgress } from "./alt-download-ui.js";
 
 const titleEl = document.getElementById("ar-model-name");
 const statusEl = document.getElementById("ar-status");
+const helpEl = document.getElementById("ar-help");
 const backBtn = document.getElementById("back-btn");
 const startArBtn = document.getElementById("start-ar-btn");
+const copyUrlBtn = document.getElementById("copy-ar-url-btn");
 const viewer = document.getElementById("ios-viewer");
 
 backBtn.addEventListener("click", () => {
   window.location.href = buildMenuBackUrl(window.location.search).toString();
+});
+
+function isIosQuickLookBrowser() {
+  const ua = navigator.userAgent;
+  const isIOS =
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+  if (!isIOS) {
+    return false;
+  }
+
+  return !/CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo/i.test(ua);
+}
+
+async function copyPageUrlToClipboard() {
+  const url = window.location.href;
+
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(url);
+    return;
+  }
+
+  const input = document.createElement("textarea");
+  input.value = url;
+  input.setAttribute("readonly", "");
+  input.style.cssText = "position:fixed;left:-9999px;top:0";
+  document.body.appendChild(input);
+  input.select();
+  document.execCommand("copy");
+  document.body.removeChild(input);
+}
+
+function showUnsupportedIosArBrowser() {
+  statusEl.textContent = "AR is not available in this browser.";
+  helpEl.textContent = "Try opening this link in Safari on your iPhone or iPad.";
+  helpEl.hidden = false;
+  startArBtn.disabled = true;
+  startArBtn.style.opacity = "0.6";
+  if (copyUrlBtn) {
+    copyUrlBtn.hidden = false;
+  }
+}
+
+copyUrlBtn?.addEventListener("click", async () => {
+  const defaultLabel = copyUrlBtn.textContent;
+
+  try {
+    await copyPageUrlToClipboard();
+    copyUrlBtn.textContent = "Link copied!";
+    setTimeout(() => {
+      copyUrlBtn.textContent = defaultLabel;
+    }, 2000);
+  } catch {
+    statusEl.textContent = "Could not copy link. Copy the address bar manually.";
+  }
 });
 
 const selection = getModelFromQuery(window.location.search);
@@ -28,11 +86,16 @@ if (!selection.entry.modelFile) {
 
 titleEl.textContent = selection.entry.label;
 
+const iosArBrowserSupported = isIosQuickLookBrowser();
+if (!iosArBrowserSupported) {
+  showUnsupportedIosArBrowser();
+} else {
+  statusEl.textContent = "Model loading...";
+}
+
 if (selection.entry.animation) {
   viewer.setAttribute("animation-name", selection.entry.animation);
 }
-
-statusEl.textContent = "Model loading...";
 
 let iosSrcUrl = null;
 const altObjectUrls = new Set();
@@ -82,7 +145,11 @@ async function initViewerViaAltDownload() {
     viewer.src = iosSrcUrl;
 
     progress.close();
-    statusEl.textContent = "Ready. Tap View in AR to place on a horizontal surface.";
+    if (!iosArBrowserSupported || viewer.canActivateAR === false) {
+      showUnsupportedIosArBrowser();
+    } else {
+      statusEl.textContent = "Ready. Tap View in AR to place on a horizontal surface.";
+    }
   } catch (error) {
     console.error(error);
     progress.close();
@@ -106,6 +173,11 @@ viewer.addEventListener("load", () => {
     return;
   }
 
+  if (!iosArBrowserSupported || viewer.canActivateAR === false) {
+    showUnsupportedIosArBrowser();
+    return;
+  }
+
   statusEl.textContent = "Ready. Tap View in AR to place on a horizontal surface.";
 });
 
@@ -120,13 +192,13 @@ viewer.addEventListener("ar-status", (event) => {
   } else if (state === "not-presenting") {
     statusEl.textContent = "AR closed.";
   } else if (state === "failed") {
-    statusEl.textContent = "AR launch failed on this device/browser.";
+    showUnsupportedIosArBrowser();
   }
 });
 
 startArBtn.addEventListener("click", async () => {
-  if (!viewer || typeof viewer.activateAR !== "function") {
-    statusEl.textContent = "AR is not supported by this iOS browser.";
+  if (!iosArBrowserSupported || !viewer || typeof viewer.activateAR !== "function") {
+    showUnsupportedIosArBrowser();
     return;
   }
 
@@ -140,6 +212,6 @@ startArBtn.addEventListener("click", async () => {
     viewer.setAttribute("ios-src", iosSrcUrl);
     await viewer.activateAR();
   } catch {
-    statusEl.textContent = "Unable to launch AR. Check iOS AR support and USDZ file availability.";
+    showUnsupportedIosArBrowser();
   }
 });

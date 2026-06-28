@@ -625,6 +625,15 @@ h1 {
   gap: 8px;
 }
 
+.ios-ar-help {
+  margin: 0;
+  text-align: center;
+  color: #cbd7e6;
+  font-size: 13px;
+  line-height: 1.35;
+  max-width: 28rem;
+}
+
 .ar-overlay {
   position: fixed;
   inset: 0;
@@ -723,4 +732,9 @@ h1 {
   margin: 10px 0 0;
   color: #8ae8ff;
   font-size: 13px;
+}
+
+.overlay-action-btn {
+  pointer-events: auto;
+  margin-top: 12px;
 }

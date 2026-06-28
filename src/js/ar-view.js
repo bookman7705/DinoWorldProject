@@ -31,9 +31,63 @@ const titleEl = document.getElementById("ar-model-name");
 const scaleEl = document.getElementById("ar-scale");
 const backBtn = document.getElementById("back-btn");
 const touchLayer = document.getElementById("ar-touch-layer");
+const copyUrlBtn = document.getElementById("copy-ar-url-btn");
 
 backBtn.addEventListener("click", () => {
   window.location.href = buildMenuBackUrl(window.location.search).toString();
+});
+
+async function isImmersiveArSupported() {
+  if (!navigator.xr) {
+    return false;
+  }
+
+  try {
+    return await navigator.xr.isSessionSupported("immersive-ar");
+  } catch {
+    return false;
+  }
+}
+
+async function copyPageUrlToClipboard() {
+  const url = window.location.href;
+
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(url);
+    return;
+  }
+
+  const input = document.createElement("textarea");
+  input.value = url;
+  input.setAttribute("readonly", "");
+  input.style.cssText = "position:fixed;left:-9999px;top:0";
+  document.body.appendChild(input);
+  input.select();
+  document.execCommand("copy");
+  document.body.removeChild(input);
+}
+
+function showUnsupportedArBrowser() {
+  statusEl.textContent = "AR is not available in this browser.";
+  helpEl.textContent =
+    "Try opening this link in Google Chrome on your phone or tablet.";
+  if (copyUrlBtn) {
+    copyUrlBtn.hidden = false;
+  }
+}
+
+copyUrlBtn?.addEventListener("click", async () => {
+  const defaultLabel = copyUrlBtn.textContent;
+
+  try {
+    await copyPageUrlToClipboard();
+    copyUrlBtn.textContent = "Link copied!";
+    setTimeout(() => {
+      copyUrlBtn.textContent = defaultLabel;
+    }, 2000);
+  } catch {
+    statusEl.textContent = "Could not copy link. Copy the address bar manually.";
+  }
 });
 
 const selection = getModelFromQuery(window.location.search);
@@ -51,9 +105,8 @@ if (!selection.entry.modelFile) {
 
 titleEl.textContent = selection.entry.label;
 
-if (!navigator.xr) {
-  statusEl.textContent = "WebXR not found on this device/browser.";
-  helpEl.textContent = "Use a supported Android browser with WebXR enabled.";
+if (!(await isImmersiveArSupported())) {
+  showUnsupportedArBrowser();
   throw new Error("WebXR unavailable");
 }
 
