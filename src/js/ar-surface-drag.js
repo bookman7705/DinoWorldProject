@@ -7,13 +7,10 @@ const HORIZONTAL_NORMAL_DOT = 0.85;
 export const DRAG_DEAD_ZONE_PX = 12;
 
 /** Start rotating after this many radians of twist. */
-export const ROTATE_DEAD_ZONE_RAD = 0.035;
+export const ROTATE_DEAD_ZONE_RAD = 0.02;
 
 /** Pinch scale must change by this ratio before scale mode activates. */
-export const SCALE_DEAD_ZONE_RATIO = 0.015;
-
-/** Per-frame pinch below this counts as twist-stable (ignore angle noise while pinching). */
-const PINCH_STABLE_RATIO = 0.006;
+export const SCALE_DEAD_ZONE_RATIO = 0.018;
 
 /** Fixed screen pixel → world meters. */
 const PX_TO_WORLD = 0.0025;
@@ -190,8 +187,8 @@ export function clearTwoFingerGesture(gesture) {
 }
 
 /**
- * Two-finger gesture: rotate takes priority; while rotating, scale and drag are blocked.
- * Pinch only accumulates twist when finger distance is stable (fixes landscape false-rotate).
+ * Two-finger pinch: twist (rotate) wins over scale and single-finger drag.
+ * Rotation accumulates during pinch — no "stable fingers" gate.
  */
 export function processTwoFingerGesture(
   gesture,
@@ -205,14 +202,11 @@ export function processTwoFingerGesture(
   const angleDelta = normalizeAngle(metrics.angle - gesture.lastAngle);
   const totalScaleRatio = metrics.distance / Math.max(gesture.startDistance, 1);
   const scaleDev = Math.abs(totalScaleRatio - 1);
-  const frameScaleDev = Math.abs(frameScaleRatio - 1);
+
+  gesture.rotateAccumRad += Math.abs(angleDelta);
+  gesture.scaleAccumDev = Math.max(gesture.scaleAccumDev, scaleDev);
 
   if (!gesture.twoFingerMode) {
-    if (frameScaleDev < PINCH_STABLE_RATIO) {
-      gesture.rotateAccumRad += Math.abs(angleDelta);
-    }
-    gesture.scaleAccumDev = Math.max(gesture.scaleAccumDev, scaleDev);
-
     if (gesture.rotateAccumRad >= rotateDeadZoneRad) {
       gesture.twoFingerMode = "rotate";
       gesture.rotating = true;
@@ -224,12 +218,13 @@ export function processTwoFingerGesture(
     }
   }
 
-  if (gesture.twoFingerMode === "rotate") {
-    if (angleDelta !== 0) {
-      gesture.pendingRotationRad += angleDelta;
-    }
-  } else if (gesture.twoFingerMode === "scale") {
+  if (gesture.twoFingerMode === "scale") {
     gesture.pendingScaleRatio *= frameScaleRatio;
+  } else if (angleDelta !== 0) {
+    gesture.pendingRotationRad += angleDelta;
+    if (gesture.twoFingerMode === "rotate") {
+      gesture.rotating = true;
+    }
   }
 
   gesture.lastDistance = metrics.distance;
@@ -237,7 +232,11 @@ export function processTwoFingerGesture(
 }
 
 export function applyScaleFromGesture(gesture, modelRoot) {
-  if (!modelRoot || gesture.twoFingerMode === "rotate" || gesture.pendingScaleRatio === 1) {
+  if (
+    !modelRoot ||
+    gesture.twoFingerMode !== "scale" ||
+    gesture.pendingScaleRatio === 1
+  ) {
     return false;
   }
 
@@ -260,8 +259,12 @@ export function applyRotationFromGesture(gesture, modelRoot) {
   gesture.pendingRotationRad = 0;
 }
 
+export function isRotatePinchActive(gesture) {
+  return gesture.twoFingerMode === "rotate" || gesture.rotating;
+}
+
 /**
- * Apply gestured transform each frame: rotate (priority), scale, drag.
+ * Apply gestured transform each frame. Pinch-rotate blocks scale and drag.
  */
 export function updateModelGrounding(modelRoot, gesture, camera) {
   if (!modelRoot) {
@@ -270,11 +273,11 @@ export function updateModelGrounding(modelRoot, gesture, camera) {
 
   applyRotationFromGesture(gesture, modelRoot);
 
-  const didScale =
-    gesture.twoFingerMode !== "rotate" ? applyScaleFromGesture(gesture, modelRoot) : false;
+  const rotatePinch = isRotatePinchActive(gesture);
+  const didScale = rotatePinch ? false : applyScaleFromGesture(gesture, modelRoot);
 
   const dragging = Boolean(gesture?.dragging && !movementBlocked(gesture));
-  if (dragging) {
+  if (dragging && !rotatePinch) {
     updateDragFromGesture(gesture, modelRoot, camera);
   }
 
@@ -347,12 +350,7 @@ export function clearGesture(gesture) {
 }
 
 export function movementBlocked(gesture) {
-  return (
-    gesture.twoFinger ||
-    gesture.twoFingerMode === "rotate" ||
-    gesture.rotating ||
-    gesture.scaling
-  );
+  return gesture.twoFinger || isRotatePinchActive(gesture);
 }
 
 export function accumulateSingleTouchMove(gesture, touch) {

@@ -222,11 +222,6 @@ function onTouchMove(event) {
   if (event.touches.length >= 2) {
     event.preventDefault();
 
-    if (gesture.twoFingerMode === "rotate") {
-      processTwoFingerGesture(gesture, getTouchMetrics(event.touches));
-      return;
-    }
-
     if (!gesture.twoFinger) {
       resetTwoFinger(gesture, event.touches, getTouchMetrics);
     }
@@ -235,7 +230,7 @@ function onTouchMove(event) {
     return;
   }
 
-  if (gesture.twoFinger || gesture.twoFingerMode === "rotate") {
+  if (gesture.twoFinger) {
     return;
   }
 
