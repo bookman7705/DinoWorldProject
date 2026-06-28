@@ -230,7 +230,7 @@ export const IMAGE_SCAN_TARGETS = [
     trackerJpg: "tracker_jpg/Triceratops.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    wallYOffset: -1.0,
+    wallYOffset: -0.25,
     modelScale: 1
   },
   {
