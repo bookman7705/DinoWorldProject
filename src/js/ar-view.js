@@ -18,11 +18,12 @@ import {
   accumulateSingleTouchMove,
   clearGesture,
   createGestureState,
+  lockGroundAtPlacement,
   movementBlocked,
   resetSingleTouch,
   resetTwoFinger,
-  updateDragFromGesture,
-  updateSurfaceSnap
+  resetSurfaceAnchor,
+  updateModelGrounding
 } from "./ar-surface-drag.js";
 
 const statusEl = document.getElementById("ar-status");
@@ -88,6 +89,7 @@ let model = null;
 let mixer = null;
 let placed = false;
 let baseScale = 0.1;
+let needsGroundLock = false;
 
 function updateScaleDisplay() {
   if (!scaleEl) {
@@ -162,6 +164,7 @@ controller.addEventListener("select", () => {
   applyPoseToModel(reticle.matrix);
   modelRoot.visible = true;
   placed = true;
+  needsGroundLock = true;
   reticle.visible = false;
   helpEl.hidden = true;
   updateScaleDisplay();
@@ -348,13 +351,14 @@ renderer.setAnimationLoop((_, frame) => {
         viewerSpace = null;
         localSpace = null;
         hitTestSource = null;
+        resetSurfaceAnchor();
+        needsGroundLock = false;
       });
     }
 
-    if (localSpace && hitTestSource) {
-      const hits = frame.getHitTestResults(hitTestSource);
-
-      if (!placed) {
+    if (localSpace) {
+      if (!placed && hitTestSource) {
+        const hits = frame.getHitTestResults(hitTestSource);
         let horizontalPose = null;
 
         for (const hit of hits) {
@@ -373,13 +377,15 @@ renderer.setAnimationLoop((_, frame) => {
         } else {
           reticle.visible = false;
         }
-      } else {
+      } else if (placed && modelRoot) {
         reticle.visible = false;
 
-        if (gesture.dragging && modelRoot) {
-          updateDragFromGesture(gesture, modelRoot, getActiveCamera());
-          updateSurfaceSnap(frame, hitTestSource, localSpace, modelRoot, { dragging: true });
+        if (needsGroundLock && hitTestSource) {
+          lockGroundAtPlacement(frame, hitTestSource, localSpace, modelRoot);
+          needsGroundLock = false;
         }
+
+        updateModelGrounding(frame, hitTestSource, localSpace, modelRoot, gesture, getActiveCamera());
       }
     }
   }
