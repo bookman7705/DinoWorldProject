@@ -18,6 +18,20 @@ export function initSettingsMenu({
 
   const closeBtn = settingsMenu.querySelector(".settings-close-btn");
   bindAltDownloadSourceCheckbox(document.getElementById("alt-download-source"));
+
+  for (const [id, path] of [
+    ["settings-about-link", "./about.html"],
+    ["settings-opensource-link", "./opensource.html"]
+  ]) {
+    const link = document.getElementById(id);
+    if (!link) {
+      continue;
+    }
+    const url = new URL(path, window.location.href);
+    url.search = window.location.search;
+    link.href = url.toString();
+  }
+
   let previousFocus = null;
 
   const setOpen = (open) => {
