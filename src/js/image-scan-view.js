@@ -118,10 +118,6 @@ function hideScanDebug() {
   scanDebug?.hide();
 }
 
-function prefersUserFacingCamera() {
-  return !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-}
-
 function getScanTargetFromUrl() {
   if (!selection.hasValidId) {
     return null;
@@ -287,9 +283,8 @@ function setupMindAR(target) {
     missTolerance: 5
   });
 
-  if (prefersUserFacingCamera()) {
-    mindarThree.shouldFaceUser = true;
-  }
+  // Image scan targets physical prints — always use the rear/environment camera.
+  mindarThree.shouldFaceUser = false;
 
   ({ renderer, scene, camera } = mindarThree);
   renderer.outputEncoding = THREE.sRGBEncoding;
