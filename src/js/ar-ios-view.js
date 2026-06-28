@@ -17,17 +17,9 @@ backBtn.addEventListener("click", () => {
   window.location.href = buildMenuBackUrl(window.location.search).toString();
 });
 
-function isIosQuickLookBrowser() {
-  const ua = navigator.userAgent;
-  const isIOS =
-    /iPad|iPhone|iPod/.test(ua) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-
-  if (!isIOS) {
-    return false;
-  }
-
-  return !/CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo/i.test(ua);
+/** Chrome, Firefox, Edge, etc. on iOS — Quick Look AR requires Safari. */
+function isThirdPartyIosBrowser() {
+  return /CriOS|FxiOS|EdgiOS|OPiOS/i.test(navigator.userAgent);
 }
 
 async function copyPageUrlToClipboard() {
@@ -48,7 +40,7 @@ async function copyPageUrlToClipboard() {
   document.body.removeChild(input);
 }
 
-function showUnsupportedIosArBrowser() {
+function showWrongBrowserForIosAr() {
   statusEl.textContent = "AR is not available in this browser.";
   helpEl.textContent = "Try opening this link in Safari on your iPhone or iPad.";
   helpEl.hidden = false;
@@ -57,6 +49,15 @@ function showUnsupportedIosArBrowser() {
   if (copyUrlBtn) {
     copyUrlBtn.hidden = false;
   }
+}
+
+function showArLaunchFailed() {
+  if (isThirdPartyIosBrowser()) {
+    showWrongBrowserForIosAr();
+    return;
+  }
+
+  statusEl.textContent = "Unable to launch AR. Check network access and try again.";
 }
 
 copyUrlBtn?.addEventListener("click", async () => {
@@ -86,9 +87,8 @@ if (!selection.entry.modelFile) {
 
 titleEl.textContent = selection.entry.label;
 
-const iosArBrowserSupported = isIosQuickLookBrowser();
-if (!iosArBrowserSupported) {
-  showUnsupportedIosArBrowser();
+if (isThirdPartyIosBrowser()) {
+  showWrongBrowserForIosAr();
 } else {
   statusEl.textContent = "Model loading...";
 }
@@ -145,8 +145,8 @@ async function initViewerViaAltDownload() {
     viewer.src = iosSrcUrl;
 
     progress.close();
-    if (!iosArBrowserSupported || viewer.canActivateAR === false) {
-      showUnsupportedIosArBrowser();
+    if (isThirdPartyIosBrowser()) {
+      showWrongBrowserForIosAr();
     } else {
       statusEl.textContent = "Ready. Tap View in AR to place on a horizontal surface.";
     }
@@ -173,8 +173,8 @@ viewer.addEventListener("load", () => {
     return;
   }
 
-  if (!iosArBrowserSupported || viewer.canActivateAR === false) {
-    showUnsupportedIosArBrowser();
+  if (isThirdPartyIosBrowser()) {
+    showWrongBrowserForIosAr();
     return;
   }
 
@@ -192,13 +192,18 @@ viewer.addEventListener("ar-status", (event) => {
   } else if (state === "not-presenting") {
     statusEl.textContent = "AR closed.";
   } else if (state === "failed") {
-    showUnsupportedIosArBrowser();
+    showArLaunchFailed();
   }
 });
 
 startArBtn.addEventListener("click", async () => {
-  if (!iosArBrowserSupported || !viewer || typeof viewer.activateAR !== "function") {
-    showUnsupportedIosArBrowser();
+  if (isThirdPartyIosBrowser()) {
+    showWrongBrowserForIosAr();
+    return;
+  }
+
+  if (!viewer || typeof viewer.activateAR !== "function") {
+    statusEl.textContent = "AR is not supported on this device.";
     return;
   }
 
@@ -212,6 +217,6 @@ startArBtn.addEventListener("click", async () => {
     viewer.setAttribute("ios-src", iosSrcUrl);
     await viewer.activateAR();
   } catch {
-    showUnsupportedIosArBrowser();
+    showArLaunchFailed();
   }
 });
