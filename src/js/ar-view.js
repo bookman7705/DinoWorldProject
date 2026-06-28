@@ -14,7 +14,16 @@ import {
 } from "./gltf-materials.js";
 import { CONTACT_SHADOW_ENABLED, createContactShadow } from "./ar-contact-shadow.js";
 import { isDebugMode } from "./debug.js";
-import { createArDragController } from "./ar-drag-controller.js";
+import {
+  accumulateSingleTouchMove,
+  clearGesture,
+  createGestureState,
+  movementBlocked,
+  resetSingleTouch,
+  resetTwoFinger,
+  updateDragFromGesture,
+  updateSurfaceSnap
+} from "./ar-surface-drag.js";
 
 const statusEl = document.getElementById("ar-status");
 const helpEl = document.getElementById("ar-help");
@@ -170,14 +179,11 @@ const worldUp = new THREE.Vector3(0, 1, 0);
 const ROTATE_DEAD_ZONE_RAD = 0.04;
 const SCALE_DEAD_ZONE_RATIO = 0.015;
 
-const dragController = createArDragController({
-  getModelRoot: () => modelRoot,
-  getActiveCamera: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera),
-  getCanvas: () => renderer.domElement,
-  isPlaced: () => placed
-});
+const gesture = createGestureState();
 
-const gesture = dragController.gesture;
+function getActiveCamera() {
+  return renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
+}
 
 function getTouchMetrics(touches) {
   const dx = touches[0].pageX - touches[1].pageX;
@@ -208,6 +214,8 @@ function applyPoseToModel(matrix) {
   modelRoot.rotation.z = 0;
 }
 
+// --- Layer 1: touch input state only (no raycasts / hit tests) ---
+
 window.addEventListener(
   "touchstart",
   (event) => {
@@ -217,21 +225,18 @@ window.addEventListener(
 
     if (event.touches.length === 1) {
       if (!gesture.twoFinger) {
-        dragController.resetSingleTouchGesture(event.touches[0]);
+        resetSingleTouch(gesture, event.touches[0]);
       }
       return;
     }
 
     if (event.touches.length >= 2) {
-      dragController.resetTwoFingerGesture(event.touches, getTouchMetrics);
+      resetTwoFinger(gesture, event.touches, getTouchMetrics);
       event.preventDefault();
     }
   },
   { passive: false }
 );
-
-let lastDragFrame = null;
-let lastDragLocalSpace = null;
 
 window.addEventListener(
   "touchmove",
@@ -244,7 +249,7 @@ window.addEventListener(
       event.preventDefault();
 
       if (!gesture.twoFinger) {
-        dragController.resetTwoFingerGesture(event.touches, getTouchMetrics);
+        resetTwoFinger(gesture, event.touches, getTouchMetrics);
       }
 
       const metrics = getTouchMetrics(event.touches);
@@ -274,12 +279,11 @@ window.addEventListener(
       return;
     }
 
-    if (event.touches.length !== 1 || !gesture.singleTouch || dragController.movementBlocked()) {
+    if (event.touches.length !== 1 || !gesture.singleTouch || movementBlocked(gesture)) {
       return;
     }
 
-    const touch = event.touches[0];
-    const didMove = dragController.onTouchMoveSingle(touch, lastDragFrame, lastDragLocalSpace);
+    const didMove = accumulateSingleTouchMove(gesture, event.touches[0]);
     if (didMove) {
       event.preventDefault();
     }
@@ -293,7 +297,7 @@ function handleTouchEnd(event) {
   }
 
   if (event.touches.length === 0) {
-    dragController.clearGestureState();
+    clearGesture(gesture);
     return;
   }
 
@@ -301,26 +305,25 @@ function handleTouchEnd(event) {
     gesture.twoFinger = false;
     gesture.scaling = false;
     gesture.rotating = false;
-    dragController.resetSingleTouchGesture(event.touches[0]);
+    resetSingleTouch(gesture, event.touches[0]);
     return;
   }
 
   if (event.touches.length >= 2) {
-    dragController.resetTwoFingerGesture(event.touches, getTouchMetrics);
+    resetTwoFinger(gesture, event.touches, getTouchMetrics);
   }
 }
 
 window.addEventListener("touchend", handleTouchEnd);
 window.addEventListener("touchcancel", handleTouchEnd);
 
+// --- Layer 2: world updates (animation loop only) ---
+
 let viewerSpace = null;
 let localSpace = null;
 let hitTestSource = null;
 
 renderer.setAnimationLoop((_, frame) => {
-  lastDragFrame = frame ?? null;
-  lastDragLocalSpace = localSpace;
-
   if (mixer) {
     mixer.update(clock.getDelta());
   }
@@ -335,18 +338,6 @@ renderer.setAnimationLoop((_, frame) => {
           .then((source) => {
             hitTestSource = source;
           });
-
-        session
-          .requestHitTestSourceForTransientInput({
-            profile: "generic-touchscreen",
-            entityTypes: ["plane"]
-          })
-          .then((source) => {
-            dragController.setTransientHitTestSource(source);
-          })
-          .catch(() => {
-            dragController.clearTransientHitTestSource();
-          });
       });
 
       session.requestReferenceSpace("local").then((space) => {
@@ -357,13 +348,13 @@ renderer.setAnimationLoop((_, frame) => {
         viewerSpace = null;
         localSpace = null;
         hitTestSource = null;
-        dragController.clearTransientHitTestSource();
       });
     }
 
-    if (localSpace) {
-      if (hitTestSource && !placed) {
-        const hits = frame.getHitTestResults(hitTestSource);
+    if (localSpace && hitTestSource) {
+      const hits = frame.getHitTestResults(hitTestSource);
+
+      if (!placed) {
         let horizontalPose = null;
 
         for (const hit of hits) {
@@ -382,9 +373,13 @@ renderer.setAnimationLoop((_, frame) => {
         } else {
           reticle.visible = false;
         }
-      } else if (placed) {
+      } else {
         reticle.visible = false;
-        dragController.updateSurfaceDrag(frame, localSpace);
+
+        if (gesture.dragging && modelRoot) {
+          updateDragFromGesture(gesture, modelRoot, getActiveCamera());
+          updateSurfaceSnap(frame, hitTestSource, localSpace, modelRoot, { dragging: true });
+        }
       }
     }
   }
