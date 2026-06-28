@@ -13,7 +13,6 @@ const view3dBtn = document.getElementById("view-3d-btn");
 
 const selected = getModelFromQuery(window.location.search);
 const debugMode = isDebugMode(window.location.search);
-const isAndroid = /android/i.test(navigator.userAgent);
 const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 function launchImageScan({ replace = false } = {}) {
@@ -98,22 +97,8 @@ if (selected.id === "scan") {
   }
 
   function launchAr(entry) {
-    if (!isAndroid) {
-      if (isIOS) {
-        const iosUrl = new URL("./ar-ios.html", window.location.href);
-        iosUrl.searchParams.set("id", entry.id);
-        if (isDebugMode(window.location.search)) {
-          iosUrl.searchParams.set("debug", "1");
-        }
-        window.location.href = iosUrl.toString();
-        return;
-      }
-
-      statusMessageEl.textContent = "View in AR currently supports Android and iOS devices.";
-      return;
-    }
-
-    const url = new URL("./ar.html", window.location.href);
+    const arPage = isIOS ? "./ar-ios.html" : "./ar.html";
+    const url = new URL(arPage, window.location.href);
     url.searchParams.set("id", entry.id);
     if (isDebugMode(window.location.search)) {
       url.searchParams.set("debug", "1");

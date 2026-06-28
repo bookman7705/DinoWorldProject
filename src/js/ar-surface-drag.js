@@ -45,9 +45,7 @@ function scorePlaneCandidate(hitPos, modelPos) {
   const dz = hitPos.z - modelPos.z;
   const xzDist = Math.hypot(dx, dz);
 
-  if (xzDist > MAX_PLANE_XZ_RADIUS) {
-    return null;
-  }
+  if (xzDist > MAX_PLANE_XZ_RADIUS) return null;
 
   const yDist = Math.abs(hitPos.y - modelPos.y);
   let score = xzDist * 4 + yDist;
@@ -65,20 +63,15 @@ export function getBestHorizontalPlane(hits, localSpace, modelPos) {
 
   for (const hit of hits) {
     const pose = hit.getPose(localSpace);
-    if (!pose) {
-      continue;
-    }
+    if (!pose) continue;
 
     tmpMatrix.fromArray(pose.transform.matrix);
-    if (!isHorizontalPoseFromMatrix(tmpMatrix)) {
-      continue;
-    }
+    if (!isHorizontalPoseFromMatrix(tmpMatrix)) continue;
 
     tmpMatrix.decompose(tmpPosition, tmpQuaternion, tmpScale);
+
     const scored = scorePlaneCandidate(tmpPosition, modelPos);
-    if (!scored || scored.score >= bestScore) {
-      continue;
-    }
+    if (!scored || scored.score >= bestScore) continue;
 
     bestScore = scored.score;
     best = scored;
@@ -88,12 +81,11 @@ export function getBestHorizontalPlane(hits, localSpace, modelPos) {
 }
 
 export function lockGroundAtPlacement(frame, hitTestSource, localSpace, modelRoot) {
-  if (!frame || !hitTestSource || !localSpace || !modelRoot) {
-    return;
-  }
+  if (!frame || !hitTestSource || !localSpace || !modelRoot) return;
 
   const hits = frame.getHitTestResults(hitTestSource);
   const plane = getBestHorizontalPlane(hits, localSpace, modelRoot.position);
+
   if (plane) {
     modelRoot.position.set(plane.x, plane.y, plane.z);
   }
@@ -136,30 +128,29 @@ export function orientScreenDelta(deltaX, deltaY) {
  * Camera-aligned XZ drag — screen X/Y mapped via view forward (works in portrait + landscape).
  */
 export function updateDragFromGesture(gesture, modelRoot, camera) {
-  if (!gesture.dragging || !modelRoot) {
-    return;
-  }
+  if (!gesture.dragging || !modelRoot) return;
 
   const deltaX = gesture.pendingDeltaX;
   const deltaY = gesture.pendingDeltaY;
-  if (deltaX === 0 && deltaY === 0) {
-    return;
-  }
+  if (deltaX === 0 && deltaY === 0) return;
+
+  // ✅ FIX: rotate screen deltas into device-native orientation space
+  const { x, y } = orientTouchVector(deltaX, deltaY);
 
   camera.updateMatrixWorld();
   camera.getWorldDirection(camLook);
   camLook.y = 0;
-  if (camLook.lengthSq() < 1e-8) {
-    return;
-  }
+
+  if (camLook.lengthSq() < 1e-8) return;
+
   camLook.normalize();
 
-  // Screen-right on the ground plane (perpendicular to view, invariant to device roll).
   camRight.crossVectors(camLook, worldUp).normalize();
 
   const scale = PX_TO_WORLD;
-  modelRoot.position.x += (camRight.x * deltaX - camLook.x * deltaY) * scale;
-  modelRoot.position.z += (camRight.z * deltaX - camLook.z * deltaY) * scale;
+
+  modelRoot.position.x += (camRight.x * x - camLook.x * y) * scale;
+  modelRoot.position.z += (camRight.z * x - camLook.z * y) * scale;
 
   gesture.pendingDeltaX = 0;
   gesture.pendingDeltaY = 0;
@@ -188,18 +179,15 @@ function resetTwoFingerAccumulators(gesture) {
   gesture.startPinchSpan = 0;
   gesture.lastPinchSpan = 0;
   gesture.startDistance = 0;
+  gesture.lastDistance = 0;
+  gesture.lastAngle = 0;
 }
 
-/** Clear two-finger scale/rotate mode when lifting a finger. */
 export function clearTwoFingerGesture(gesture) {
   gesture.twoFinger = false;
   resetTwoFingerAccumulators(gesture);
 }
 
-/**
- * Two-finger pinch: twist (rotate) wins over scale and single-finger drag.
- * Rotation accumulates during pinch — no "stable fingers" gate.
- */
 export function processTwoFingerGesture(
   gesture,
   metrics,
@@ -219,6 +207,7 @@ export function processTwoFingerGesture(
   if (framePinchChange < PINCH_FRAME_STABLE_RATIO) {
     gesture.rotateAccumRad += Math.abs(angleDelta);
   }
+
   gesture.scaleAccumDev = Math.max(gesture.scaleAccumDev, scaleDev);
 
   if (!gesture.twoFingerMode) {
@@ -228,11 +217,9 @@ export function processTwoFingerGesture(
     if (twistReady) {
       gesture.twoFingerMode = "rotate";
       gesture.rotating = true;
-      gesture.scaling = false;
     } else if (pinchReady) {
       gesture.twoFingerMode = "scale";
       gesture.scaling = true;
-      gesture.rotating = false;
     }
   }
 
@@ -241,9 +228,6 @@ export function processTwoFingerGesture(
     gesture.lastPinchSpan = pinchSpan;
   } else if (angleDelta !== 0) {
     gesture.pendingRotationRad += angleDelta;
-    if (gesture.twoFingerMode === "rotate") {
-      gesture.rotating = true;
-    }
   }
 
   gesture.lastDistance = metrics.distance;
@@ -255,24 +239,21 @@ export function applyScaleFromGesture(gesture, modelRoot) {
     !modelRoot ||
     gesture.twoFingerMode !== "scale" ||
     gesture.pendingScaleRatio === 1
-  ) {
-    return false;
-  }
+  ) return false;
 
   const nextScale = THREE.MathUtils.clamp(
     modelRoot.scale.x * gesture.pendingScaleRatio,
     MIN_SCALE,
     MAX_SCALE
   );
+
   modelRoot.scale.setScalar(nextScale);
   gesture.pendingScaleRatio = 1;
   return true;
 }
 
 export function applyRotationFromGesture(gesture, modelRoot) {
-  if (!modelRoot || gesture.pendingRotationRad === 0) {
-    return;
-  }
+  if (!modelRoot || gesture.pendingRotationRad === 0) return;
 
   modelRoot.rotation.y -= gesture.pendingRotationRad;
   gesture.pendingRotationRad = 0;
@@ -282,13 +263,8 @@ export function isRotatePinchActive(gesture) {
   return gesture.twoFingerMode === "rotate" || gesture.rotating;
 }
 
-/**
- * Apply gestured transform each frame. Pinch-rotate blocks scale and drag.
- */
 export function updateModelGrounding(modelRoot, gesture, camera) {
-  if (!modelRoot) {
-    return false;
-  }
+  if (!modelRoot) return false;
 
   applyRotationFromGesture(gesture, modelRoot);
 
@@ -296,12 +272,14 @@ export function updateModelGrounding(modelRoot, gesture, camera) {
   const didScale = rotatePinch ? false : applyScaleFromGesture(gesture, modelRoot);
 
   const dragging = Boolean(gesture?.dragging && !movementBlocked(gesture));
+
   if (dragging && !rotatePinch) {
     updateDragFromGesture(gesture, modelRoot, camera);
   }
 
   modelRoot.rotation.x = 0;
   modelRoot.rotation.z = 0;
+
   return didScale;
 }
 
@@ -356,8 +334,15 @@ export function resetTwoFinger(gesture, touches, getTouchMetrics) {
   gesture.pendingDeltaX = 0;
   gesture.pendingDeltaY = 0;
   resetTwoFingerAccumulators(gesture);
-  gesture.pinchAxis = Math.abs(metrics.oriented.x) >= Math.abs(metrics.oriented.y) ? "x" : "y";
-  gesture.startPinchSpan = Math.max(pinchSpanFromOriented(metrics.oriented, gesture.pinchAxis), 1);
+
+  gesture.pinchAxis =
+    Math.abs(metrics.oriented.x) >= Math.abs(metrics.oriented.y) ? "x" : "y";
+
+  gesture.startPinchSpan = Math.max(
+    pinchSpanFromOriented(metrics.oriented, gesture.pinchAxis),
+    1
+  );
+
   gesture.lastPinchSpan = gesture.startPinchSpan;
   gesture.startDistance = metrics.distance;
   gesture.lastDistance = metrics.distance;
@@ -379,15 +364,12 @@ export function movementBlocked(gesture) {
 }
 
 export function accumulateSingleTouchMove(gesture, touch) {
-  if (movementBlocked(gesture)) {
-    return false;
-  }
+  if (movementBlocked(gesture)) return false;
 
   const dx = touch.clientX - gesture.lastX;
   const dy = touch.clientY - gesture.lastY;
-  if (dx === 0 && dy === 0) {
-    return false;
-  }
+
+  if (dx === 0 && dy === 0) return false;
 
   gesture.dragAccumPx += Math.hypot(dx, dy);
 
@@ -404,16 +386,16 @@ export function accumulateSingleTouchMove(gesture, touch) {
   gesture.pendingDeltaY += dy;
   gesture.lastX = touch.clientX;
   gesture.lastY = touch.clientY;
+
   return true;
 }
 
-/**
- * Two-finger metrics with device-oriented separation for scale (portrait + landscape).
- */
 export function getTwoFingerMetrics(touchA, touchB) {
   const dx = touchB.clientX - touchA.clientX;
   const dy = touchB.clientY - touchA.clientY;
+
   const oriented = orientTouchVector(dx, dy);
+
   return {
     distance: Math.hypot(dx, dy),
     oriented,
