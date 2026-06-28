@@ -13,12 +13,14 @@ import {
   setupArSceneLighting
 } from "./gltf-materials.js";
 import { CONTACT_SHADOW_ENABLED, createContactShadow } from "./ar-contact-shadow.js";
+import { isDebugMode } from "./debug.js";
 
 const statusEl = document.getElementById("ar-status");
 const helpEl = document.getElementById("ar-help");
 const titleEl = document.getElementById("ar-model-name");
 const scaleEl = document.getElementById("ar-scale");
 const backBtn = document.getElementById("back-btn");
+const debugMode = isDebugMode(window.location.search);
 
 backBtn.addEventListener("click", () => {
   window.location.href = buildMenuBackUrl(window.location.search).toString();
@@ -78,7 +80,12 @@ let placed = false;
 let baseScale = 0.1;
 
 function updateScaleDisplay() {
-  if (!modelRoot || !placed || !scaleEl) {
+  if (!scaleEl) {
+    return;
+  }
+
+  if (!debugMode || !modelRoot || !placed) {
+    scaleEl.hidden = true;
     return;
   }
 
@@ -146,8 +153,9 @@ controller.addEventListener("select", () => {
   modelRoot.visible = true;
   placed = true;
   reticle.visible = false;
+  helpEl.hidden = true;
   updateScaleDisplay();
-  statusEl.textContent = "Model placed. Swipe to move, pinch to scale, twist to rotate.";
+  statusEl.textContent = "Swipe to move. Pinch to scale. Twist to rotate.";
 });
 scene.add(controller);
 
@@ -156,7 +164,6 @@ const dragRaycaster = new THREE.Raycaster();
 const dragNdc = new THREE.Vector2();
 const dragPlane = new THREE.Plane();
 const dragWorldPoint = new THREE.Vector3();
-const dragWorldDelta = new THREE.Vector3();
 const tmpMatrix = new THREE.Matrix4();
 const tmpPosition = new THREE.Vector3();
 const tmpQuaternion = new THREE.Quaternion();
@@ -166,7 +173,7 @@ const tmpNormal = new THREE.Vector3();
 const DRAG_DEAD_ZONE_PX = 12;
 const ROTATE_DEAD_ZONE_RAD = 0.04;
 const SCALE_DEAD_ZONE_RATIO = 0.015;
-const PLANE_SNAP_XZ_RADIUS = 0.85;
+const PLANE_HEIGHT_XZ_RADIUS = 0.45;
 
 const gesture = {
   singleTouch: false,
@@ -183,7 +190,6 @@ const gesture = {
   lastAngle: 0,
   hasDragWorldAnchor: false,
   lastDragWorldX: 0,
-  lastDragWorldY: 0,
   lastDragWorldZ: 0
 };
 
@@ -269,31 +275,26 @@ function screenPointToWorldOnPlane(screenX, screenY, planeY, out) {
 }
 
 function translateModelByScreenPoint(screenX, screenY) {
-  if (!screenPointToWorldOnPlane(screenX, screenY, modelRoot.position.y, dragWorldPoint)) {
+  const planeY = modelRoot.position.y;
+  if (!screenPointToWorldOnPlane(screenX, screenY, planeY, dragWorldPoint)) {
     return;
   }
 
   if (!gesture.hasDragWorldAnchor) {
     gesture.lastDragWorldX = dragWorldPoint.x;
-    gesture.lastDragWorldY = dragWorldPoint.y;
     gesture.lastDragWorldZ = dragWorldPoint.z;
     gesture.hasDragWorldAnchor = true;
     return;
   }
 
-  dragWorldDelta.set(
-    dragWorldPoint.x - gesture.lastDragWorldX,
-    dragWorldPoint.y - gesture.lastDragWorldY,
-    dragWorldPoint.z - gesture.lastDragWorldZ
-  );
-  modelRoot.position.add(dragWorldDelta);
+  modelRoot.position.x += dragWorldPoint.x - gesture.lastDragWorldX;
+  modelRoot.position.z += dragWorldPoint.z - gesture.lastDragWorldZ;
 
   gesture.lastDragWorldX = dragWorldPoint.x;
-  gesture.lastDragWorldY = dragWorldPoint.y;
   gesture.lastDragWorldZ = dragWorldPoint.z;
 }
 
-function considerHorizontalHit(pose, modelPos, state) {
+function considerHorizontalPlaneForHeight(pose, modelPos, state) {
   if (!pose) {
     return;
   }
@@ -304,10 +305,11 @@ function considerHorizontalHit(pose, modelPos, state) {
   }
 
   tmpMatrix.decompose(tmpPosition, tmpQuaternion, tmpScale);
+
   const dx = tmpPosition.x - modelPos.x;
   const dz = tmpPosition.z - modelPos.z;
   const distSq = dx * dx + dz * dz;
-  const maxDistSq = PLANE_SNAP_XZ_RADIUS * PLANE_SNAP_XZ_RADIUS;
+  const maxDistSq = PLANE_HEIGHT_XZ_RADIUS * PLANE_HEIGHT_XZ_RADIUS;
 
   if (distSq <= maxDistSq && distSq < state.bestDistSq) {
     state.bestDistSq = distSq;
@@ -315,17 +317,20 @@ function considerHorizontalHit(pose, modelPos, state) {
   }
 }
 
-function correctModelElevation(frame, localSpace) {
+function correctModelHeightFromPlanes(frame, localSpace) {
   if (!placed || !model || !gesture.moving || !localSpace) {
     return;
   }
 
-  const state = { bestY: null, bestDistSq: PLANE_SNAP_XZ_RADIUS * PLANE_SNAP_XZ_RADIUS };
   const modelPos = modelRoot.position;
+  const state = {
+    bestY: null,
+    bestDistSq: PLANE_HEIGHT_XZ_RADIUS * PLANE_HEIGHT_XZ_RADIUS
+  };
 
   if (hitTestSource) {
     for (const hit of frame.getHitTestResults(hitTestSource)) {
-      considerHorizontalHit(hit.getPose(localSpace), modelPos, state);
+      considerHorizontalPlaneForHeight(hit.getPose(localSpace), modelPos, state);
     }
   }
 
@@ -333,7 +338,7 @@ function correctModelElevation(frame, localSpace) {
     const transientResults = frame.getHitTestResultsForTransientInput(transientHitTestSource);
     for (const result of transientResults) {
       for (const hit of result.results) {
-        considerHorizontalHit(hit.getPose(localSpace), modelPos, state);
+        considerHorizontalPlaneForHeight(hit.getPose(localSpace), modelPos, state);
       }
     }
   }
@@ -533,7 +538,7 @@ renderer.setAnimationLoop((_, frame) => {
         reticle.visible = false;
       }
 
-      correctModelElevation(frame, localSpace);
+      correctModelHeightFromPlanes(frame, localSpace);
     }
   }
 
