@@ -29,6 +29,7 @@ const helpEl = document.getElementById("ar-help");
 const titleEl = document.getElementById("ar-model-name");
 const scaleEl = document.getElementById("ar-scale");
 const backBtn = document.getElementById("back-btn");
+const touchLayer = document.getElementById("ar-touch-layer");
 
 backBtn.addEventListener("click", () => {
   window.location.href = buildMenuBackUrl(window.location.search).toString();
@@ -64,7 +65,11 @@ configureGltfRenderer(renderer, { exposure: 1.2 });
 document.body.appendChild(renderer.domElement);
 renderer.domElement.style.touchAction = "none";
 
-const touchTarget = renderer.domElement;
+function setGestureInputActive(active) {
+  if (touchLayer) {
+    touchLayer.classList.toggle("is-active", active);
+  }
+}
 
 window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -146,6 +151,7 @@ controller.addEventListener("select", () => {
   modelRoot.visible = true;
   placed = true;
   needsGroundLock = true;
+  setGestureInputActive(true);
   reticle.visible = false;
   helpEl.hidden = true;
   updateScaleDisplay();
@@ -188,62 +194,56 @@ function applyPoseToModel(matrix) {
   modelRoot.rotation.z = 0;
 }
 
-// --- Layer 1: touch input state only (no raycasts / hit tests) ---
+// --- Layer 1: touch input on dom-overlay layer (WebXR canvas does not receive touches) ---
 
-touchTarget.addEventListener(
-  "touchstart",
-  (event) => {
-    if (!placed || !model) {
-      return;
+function onTouchStart(event) {
+  if (!placed || !model) {
+    return;
+  }
+
+  if (event.target.closest(".overlay-btn")) {
+    return;
+  }
+
+  if (event.touches.length === 1) {
+    if (!gesture.twoFinger && !gesture.singleTouch) {
+      resetSingleTouch(gesture, event.touches[0]);
     }
+    return;
+  }
 
-    if (event.touches.length === 1) {
-      if (!gesture.twoFinger && !gesture.singleTouch) {
-        resetSingleTouch(gesture, event.touches[0]);
-      }
-      return;
-    }
+  if (event.touches.length >= 2) {
+    resetTwoFinger(gesture, event.touches, getTouchMetrics);
+    event.preventDefault();
+  }
+}
 
-    if (event.touches.length >= 2) {
+function onTouchMove(event) {
+  if (!placed || !model) {
+    return;
+  }
+
+  if (event.touches.length >= 2) {
+    event.preventDefault();
+
+    if (!gesture.twoFinger) {
       resetTwoFinger(gesture, event.touches, getTouchMetrics);
-      event.preventDefault();
-    }
-  },
-  { passive: false }
-);
-
-touchTarget.addEventListener(
-  "touchmove",
-  (event) => {
-    if (!placed || !model) {
-      return;
     }
 
-    if (event.touches.length >= 2) {
-      event.preventDefault();
+    processTwoFingerGesture(gesture, getTouchMetrics(event.touches));
+    return;
+  }
 
-      if (!gesture.twoFinger) {
-        resetTwoFinger(gesture, event.touches, getTouchMetrics);
-      }
+  if (event.touches.length !== 1 || !gesture.singleTouch || movementBlocked(gesture)) {
+    return;
+  }
 
-      const metrics = getTouchMetrics(event.touches);
-      processTwoFingerGesture(gesture, metrics);
-      return;
-    }
+  if (accumulateSingleTouchMove(gesture, event.touches[0])) {
+    event.preventDefault();
+  }
+}
 
-    if (event.touches.length !== 1 || !gesture.singleTouch || movementBlocked(gesture)) {
-      return;
-    }
-
-    const didMove = accumulateSingleTouchMove(gesture, event.touches[0]);
-    if (didMove) {
-      event.preventDefault();
-    }
-  },
-  { passive: false }
-);
-
-function handleTouchEnd(event) {
+function onTouchEnd(event) {
   if (!placed || !model) {
     return;
   }
@@ -266,8 +266,10 @@ function handleTouchEnd(event) {
   }
 }
 
-touchTarget.addEventListener("touchend", handleTouchEnd);
-touchTarget.addEventListener("touchcancel", handleTouchEnd);
+document.addEventListener("touchstart", onTouchStart, { passive: false, capture: true });
+document.addEventListener("touchmove", onTouchMove, { passive: false, capture: true });
+document.addEventListener("touchend", onTouchEnd, { passive: false, capture: true });
+document.addEventListener("touchcancel", onTouchEnd, { passive: false, capture: true });
 
 // --- Layer 2: world updates (animation loop only) ---
 
@@ -278,6 +280,17 @@ let hitTestSource = null;
 renderer.setAnimationLoop((_, frame) => {
   if (mixer) {
     mixer.update(clock.getDelta());
+  }
+
+  if (placed && modelRoot) {
+    if (frame && needsGroundLock && hitTestSource && localSpace) {
+      lockGroundAtPlacement(frame, hitTestSource, localSpace, modelRoot);
+      needsGroundLock = false;
+    }
+
+    if (updateModelGrounding(modelRoot, gesture, getActiveCamera())) {
+      updateScaleDisplay();
+    }
   }
 
   if (frame) {
@@ -302,43 +315,33 @@ renderer.setAnimationLoop((_, frame) => {
         hitTestSource = null;
         needsGroundLock = false;
         placed = false;
+        setGestureInputActive(false);
         helpEl.hidden = false;
       });
     }
 
-    if (localSpace) {
-      if (!placed && hitTestSource) {
-        const hits = frame.getHitTestResults(hitTestSource);
-        let horizontalPose = null;
+    if (localSpace && !placed && hitTestSource) {
+      const hits = frame.getHitTestResults(hitTestSource);
+      let horizontalPose = null;
 
-        for (const hit of hits) {
-          const pose = hit.getPose(localSpace);
-          if (!pose) continue;
-          tmpMatrix.fromArray(pose.transform.matrix);
-          if (isHorizontalPoseFromMatrix(tmpMatrix)) {
-            horizontalPose = pose;
-            break;
-          }
-        }
-
-        if (horizontalPose) {
-          reticle.visible = true;
-          reticle.matrix.fromArray(horizontalPose.transform.matrix);
-        } else {
-          reticle.visible = false;
-        }
-      } else if (placed && modelRoot) {
-        reticle.visible = false;
-
-        if (needsGroundLock && hitTestSource) {
-          lockGroundAtPlacement(frame, hitTestSource, localSpace, modelRoot);
-          needsGroundLock = false;
-        }
-
-        if (updateModelGrounding(modelRoot, gesture, getActiveCamera())) {
-          updateScaleDisplay();
+      for (const hit of hits) {
+        const pose = hit.getPose(localSpace);
+        if (!pose) continue;
+        tmpMatrix.fromArray(pose.transform.matrix);
+        if (isHorizontalPoseFromMatrix(tmpMatrix)) {
+          horizontalPose = pose;
+          break;
         }
       }
+
+      if (horizontalPose) {
+        reticle.visible = true;
+        reticle.matrix.fromArray(horizontalPose.transform.matrix);
+      } else {
+        reticle.visible = false;
+      }
+    } else if (placed) {
+      reticle.visible = false;
     }
   }
 

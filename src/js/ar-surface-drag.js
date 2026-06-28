@@ -13,7 +13,7 @@ export const ROTATE_DEAD_ZONE_RAD = 0.04;
 export const SCALE_DEAD_ZONE_RATIO = 0.015;
 
 /** Fixed screen pixel → world meters. */
-const PX_TO_WORLD = 0.001;
+const PX_TO_WORLD = 0.0025;
 
 /** Min / max uniform scale multiplier relative to placement scale. */
 const MIN_SCALE = 0.04;
