@@ -227,7 +227,7 @@ window.addEventListener(
     }
 
     if (event.touches.length === 1) {
-      if (!gesture.twoFinger) {
+      if (!gesture.twoFinger && !gesture.singleTouch) {
         resetSingleTouch(gesture, event.touches[0]);
       }
       return;
@@ -308,7 +308,9 @@ function handleTouchEnd(event) {
     gesture.twoFinger = false;
     gesture.scaling = false;
     gesture.rotating = false;
-    resetSingleTouch(gesture, event.touches[0]);
+    if (!gesture.singleTouch) {
+      resetSingleTouch(gesture, event.touches[0]);
+    }
     return;
   }
 

@@ -24,14 +24,23 @@ const CANDIDATE_MATCH_DIST = 0.12;
 /** Frames without hits before anchor validity decays. */
 const ANCHOR_DECAY_AGE = 90;
 
-/** Full-position lerp toward the surface anchor. */
-const ANCHOR_POSITION_LERP = 0.15;
+/** XZ smoothing toward the surface anchor (non-drag). */
+const XZ_SNAP_LERP = 0.12;
 
-/** Slower lerp when switching between surfaces (table → floor). */
-const SURFACE_CHANGE_LERP = 0.1;
+/** Y smoothing toward the surface anchor. */
+const Y_SNAP_LERP = 0.18;
 
-/** Y delta (m) that counts as a surface change. */
+/** Slower XZ lerp when switching between surfaces (table → floor). */
+const SURFACE_CHANGE_XZ_LERP = 0.1;
+
+/** Slower Y lerp when switching between surfaces. */
+const SURFACE_CHANGE_Y_LERP = 0.15;
+
+/** Y delta (m) that counts as a surface change or unstable spike. */
 const SURFACE_CHANGE_Y = 0.2;
+
+/** Lerp factor for smoothing stability tracker toward raw candidates. */
+const STABILITY_SMOOTH = 0.35;
 
 const worldUp = new THREE.Vector3(0, 1, 0);
 const tmpMatrix = new THREE.Matrix4();
@@ -41,7 +50,6 @@ const tmpScale = new THREE.Vector3();
 const tmpNormal = new THREE.Vector3();
 const camRight = new THREE.Vector3();
 const camForward = new THREE.Vector3();
-const anchorTarget = new THREE.Vector3();
 
 /** Persistent ground anchor — survives sparse Android hit-test frames. */
 export const surfaceAnchor = {
@@ -49,7 +57,8 @@ export const surfaceAnchor = {
   y: 0,
   z: 0,
   valid: false,
-  age: 0
+  age: 0,
+  surfaceChanged: false
 };
 
 /** Internal stability tracker for noisy Android plane hits. */
@@ -68,6 +77,30 @@ function isHorizontalPoseFromMatrix(matrix) {
 
 function candidateDistance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+}
+
+function referenceYForSpikeCheck() {
+  if (stability.frames > 0) {
+    return stability.y;
+  }
+  if (surfaceAnchor.valid) {
+    return surfaceAnchor.y;
+  }
+  return null;
+}
+
+/**
+ * Reject one-frame Y spikes unless the candidate is already stabilizing.
+ */
+function isUnstableYSpike(candidateY) {
+  const refY = referenceYForSpikeCheck();
+  if (refY === null) {
+    return false;
+  }
+  return (
+    Math.abs(candidateY - refY) > SURFACE_CHANGE_Y &&
+    stability.frames < STABILITY_FRAMES_REQUIRED
+  );
 }
 
 /**
@@ -123,6 +156,13 @@ export function getBestHorizontalPlane(hits, localSpace, modelPos) {
   return best;
 }
 
+function decayAnchorAge() {
+  surfaceAnchor.age += 1;
+  if (surfaceAnchor.age > ANCHOR_DECAY_AGE) {
+    surfaceAnchor.valid = false;
+  }
+}
+
 /**
  * Update persistent anchor using stability bias (reject one-frame Android noise).
  */
@@ -135,23 +175,24 @@ export function updateSurfaceAnchorFromHits(
   const candidate = getBestHorizontalPlane(hits, localSpace, modelPos);
 
   if (!candidate) {
-    surfaceAnchor.age += 1;
-    if (surfaceAnchor.age > ANCHOR_DECAY_AGE) {
-      surfaceAnchor.valid = false;
-    }
+    decayAnchorAge();
     return false;
   }
 
-  surfaceAnchor.age = 0;
+  if (isUnstableYSpike(candidate.y)) {
+    decayAnchorAge();
+    return false;
+  }
 
-  const stablePoint = { x: candidate.x, y: candidate.y, z: candidate.z };
-  const distToStable = candidateDistance(stablePoint, stability);
+  surfaceAnchor.age = Math.max(0, surfaceAnchor.age - 2);
+
+  const distToStable = candidateDistance(candidate, stability);
 
   if (distToStable < CANDIDATE_MATCH_DIST) {
     stability.frames += 1;
-    stability.x = THREE.MathUtils.lerp(stability.x, candidate.x, 0.45);
-    stability.y = THREE.MathUtils.lerp(stability.y, candidate.y, 0.45);
-    stability.z = THREE.MathUtils.lerp(stability.z, candidate.z, 0.45);
+    stability.x = THREE.MathUtils.lerp(stability.x, candidate.x, STABILITY_SMOOTH);
+    stability.y = THREE.MathUtils.lerp(stability.y, candidate.y, STABILITY_SMOOTH);
+    stability.z = THREE.MathUtils.lerp(stability.z, candidate.z, STABILITY_SMOOTH);
   } else {
     stability.frames = 1;
     stability.x = candidate.x;
@@ -159,7 +200,7 @@ export function updateSurfaceAnchorFromHits(
     stability.z = candidate.z;
   }
 
-  const ready = forceImmediate || stability.frames >= STABILITY_FRAMES_REQUIRED || !surfaceAnchor.valid;
+  const ready = forceImmediate || stability.frames >= STABILITY_FRAMES_REQUIRED;
   if (!ready) {
     return false;
   }
@@ -189,7 +230,7 @@ export function resetSurfaceAnchor() {
 }
 
 /**
- * Immediately ground the model after placement.
+ * Immediately ground the model after placement (direct set allowed only here).
  */
 export function lockGroundAtPlacement(frame, hitTestSource, localSpace, modelRoot) {
   if (!frame || !hitTestSource || !localSpace || !modelRoot) {
@@ -197,14 +238,9 @@ export function lockGroundAtPlacement(frame, hitTestSource, localSpace, modelRoo
   }
 
   const hits = frame.getHitTestResults(hitTestSource);
-  const updated = updateSurfaceAnchorFromHits(hits, localSpace, modelRoot.position, {
+  updateSurfaceAnchorFromHits(hits, localSpace, modelRoot.position, {
     forceImmediate: true
   });
-
-  if (updated && surfaceAnchor.valid) {
-    modelRoot.position.set(surfaceAnchor.x, surfaceAnchor.y, surfaceAnchor.z);
-    return;
-  }
 
   if (surfaceAnchor.valid) {
     modelRoot.position.set(surfaceAnchor.x, surfaceAnchor.y, surfaceAnchor.z);
@@ -212,7 +248,7 @@ export function lockGroundAtPlacement(frame, hitTestSource, localSpace, modelRoo
 }
 
 /**
- * Camera-aligned XZ drag projected on the active ground height.
+ * Camera-aligned XZ drag — never mutates Y or anchor state.
  */
 export function updateDragFromGesture(gesture, modelRoot, camera) {
   if (!gesture.dragging || !modelRoot) {
@@ -228,32 +264,35 @@ export function updateDragFromGesture(gesture, modelRoot, camera) {
   camera.getWorldDirection(camForward);
   camForward.y = 0;
   if (camForward.lengthSq() < 1e-8) {
-    gesture.pendingDeltaX = 0;
-    gesture.pendingDeltaY = 0;
     return;
   }
   camForward.normalize();
   camRight.crossVectors(worldUp, camForward).normalize();
 
-  modelRoot.position.addScaledVector(camRight, deltaX * PX_TO_WORLD);
-  modelRoot.position.addScaledVector(camForward, -deltaY * PX_TO_WORLD);
+  modelRoot.position.x += camRight.x * deltaX * PX_TO_WORLD + camForward.x * -deltaY * PX_TO_WORLD;
+  modelRoot.position.z += camRight.z * deltaX * PX_TO_WORLD + camForward.z * -deltaY * PX_TO_WORLD;
 
   gesture.pendingDeltaX = 0;
   gesture.pendingDeltaY = 0;
 }
 
 /**
- * Smoothly snap full model position toward the validated surface anchor.
+ * Smoothly snap model toward the validated surface anchor.
+ * While dragging, only Y is influenced — XZ stays under gesture control.
  */
-export function updateSurfaceSnap(modelRoot) {
+export function updateSurfaceSnap(modelRoot, dragging = false) {
   if (!modelRoot || !surfaceAnchor.valid) {
     return;
   }
 
-  anchorTarget.set(surfaceAnchor.x, surfaceAnchor.y, surfaceAnchor.z);
+  const yLerp = surfaceAnchor.surfaceChanged ? SURFACE_CHANGE_Y_LERP : Y_SNAP_LERP;
+  modelRoot.position.y = THREE.MathUtils.lerp(modelRoot.position.y, surfaceAnchor.y, yLerp);
 
-  const lerpFactor = surfaceAnchor.surfaceChanged ? SURFACE_CHANGE_LERP : ANCHOR_POSITION_LERP;
-  modelRoot.position.lerp(anchorTarget, lerpFactor);
+  if (!dragging) {
+    const xzLerp = surfaceAnchor.surfaceChanged ? SURFACE_CHANGE_XZ_LERP : XZ_SNAP_LERP;
+    modelRoot.position.x = THREE.MathUtils.lerp(modelRoot.position.x, surfaceAnchor.x, xzLerp);
+    modelRoot.position.z = THREE.MathUtils.lerp(modelRoot.position.z, surfaceAnchor.z, xzLerp);
+  }
 
   surfaceAnchor.surfaceChanged = false;
 }
@@ -266,44 +305,43 @@ export function applyFallbackGrounding(modelRoot) {
     return;
   }
 
-  if (surfaceAnchor.valid) {
-    modelRoot.position.y = THREE.MathUtils.lerp(modelRoot.position.y, surfaceAnchor.y, 0.12);
-    return;
-  }
-
   modelRoot.position.y = THREE.MathUtils.lerp(modelRoot.position.y, 0, 0.06);
 }
 
 /**
- * Single animation-loop entry: evaluate anchor, drag, snap, fallback.
+ * Single animation-loop entry: drag → anchor → snap → fallback → rotation lock.
  */
 export function updateModelGrounding(frame, hitTestSource, localSpace, modelRoot, gesture, camera) {
   if (!modelRoot) {
     return;
   }
 
-  if (gesture?.dragging) {
+  const dragging = Boolean(gesture?.dragging && !movementBlocked(gesture));
+
+  // 1. Apply drag (XZ only, camera-aligned)
+  if (dragging) {
     updateDragFromGesture(gesture, modelRoot, camera);
   }
 
+  // 2. Update anchor from hit-test results
   if (frame && hitTestSource && localSpace) {
     const hits = frame.getHitTestResults(hitTestSource);
     updateSurfaceAnchorFromHits(hits, localSpace, modelRoot.position, {
-      preserveModelXZ: Boolean(gesture?.dragging)
+      preserveModelXZ: dragging
     });
   } else {
-    surfaceAnchor.age += 1;
-    if (surfaceAnchor.age > ANCHOR_DECAY_AGE) {
-      surfaceAnchor.valid = false;
-    }
+    decayAnchorAge();
   }
 
+  // 3. Apply snap to anchor (Y + optional XZ smoothing)
   if (surfaceAnchor.valid) {
-    updateSurfaceSnap(modelRoot);
+    updateSurfaceSnap(modelRoot, dragging);
   } else {
+    // 4. Fallback grounding when no valid anchor
     applyFallbackGrounding(modelRoot);
   }
 
+  // 5. Reset X/Z rotation to zero
   modelRoot.rotation.x = 0;
   modelRoot.rotation.z = 0;
 }
@@ -333,6 +371,8 @@ export function createGestureState() {
 export function resetSingleTouch(gesture, touch) {
   gesture.singleTouch = true;
   gesture.twoFinger = false;
+  gesture.scaling = false;
+  gesture.rotating = false;
   gesture.dragging = false;
   gesture.dragAccumPx = 0;
   gesture.pendingDeltaX = 0;
@@ -352,6 +392,7 @@ export function resetTwoFinger(gesture, touches, getTouchMetrics) {
   gesture.rotating = false;
   gesture.pendingDeltaX = 0;
   gesture.pendingDeltaY = 0;
+  gesture.dragAccumPx = 0;
   gesture.lastDistance = metrics.distance;
   gesture.lastAngle = metrics.angle;
 }
@@ -375,6 +416,10 @@ export function movementBlocked(gesture) {
  * Record screen movement during a single-finger gesture (no world mutation).
  */
 export function accumulateSingleTouchMove(gesture, touch) {
+  if (movementBlocked(gesture)) {
+    return false;
+  }
+
   const dx = touch.clientX - gesture.lastX;
   const dy = touch.clientY - gesture.lastY;
   if (dx === 0 && dy === 0) {
