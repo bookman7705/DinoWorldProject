@@ -14,6 +14,7 @@ import {
 } from "./gltf-materials.js";
 import { CONTACT_SHADOW_ENABLED, createContactShadow } from "./ar-contact-shadow.js";
 import { isDebugMode } from "./debug.js";
+import { createArDragController } from "./ar-drag-controller.js";
 
 const statusEl = document.getElementById("ar-status");
 const helpEl = document.getElementById("ar-help");
@@ -159,79 +160,24 @@ controller.addEventListener("select", () => {
 });
 scene.add(controller);
 
-const worldUp = new THREE.Vector3(0, 1, 0);
-const dragRaycaster = new THREE.Raycaster();
-const dragNdc = new THREE.Vector2();
-const dragPlane = new THREE.Plane();
-const dragWorldPoint = new THREE.Vector3();
 const tmpMatrix = new THREE.Matrix4();
 const tmpPosition = new THREE.Vector3();
 const tmpQuaternion = new THREE.Quaternion();
 const tmpScale = new THREE.Vector3();
 const tmpNormal = new THREE.Vector3();
+const worldUp = new THREE.Vector3(0, 1, 0);
 
-const DRAG_DEAD_ZONE_PX = 12;
 const ROTATE_DEAD_ZONE_RAD = 0.04;
 const SCALE_DEAD_ZONE_RATIO = 0.015;
-const PLANE_HEIGHT_XZ_RADIUS = 0.45;
 
-const gesture = {
-  singleTouch: false,
-  twoFinger: false,
-  moving: false,
-  scaling: false,
-  rotating: false,
-  startScreenX: 0,
-  startScreenY: 0,
-  lastScreenX: 0,
-  lastScreenY: 0,
-  dragAccumPx: 0,
-  lastDistance: 0,
-  lastAngle: 0,
-  hasDragWorldAnchor: false,
-  lastDragWorldX: 0,
-  lastDragWorldZ: 0
-};
+const dragController = createArDragController({
+  getModelRoot: () => modelRoot,
+  getActiveCamera: () => (renderer.xr.isPresenting ? renderer.xr.getCamera() : camera),
+  getCanvas: () => renderer.domElement,
+  isPlaced: () => placed
+});
 
-function getActiveCamera() {
-  return renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
-}
-
-function resetSingleTouchGesture(touch) {
-  gesture.singleTouch = true;
-  gesture.moving = false;
-  gesture.dragAccumPx = 0;
-  gesture.hasDragWorldAnchor = false;
-  gesture.startScreenX = touch.pageX;
-  gesture.startScreenY = touch.pageY;
-  gesture.lastScreenX = touch.pageX;
-  gesture.lastScreenY = touch.pageY;
-}
-
-function resetTwoFingerGesture(touches) {
-  const metrics = getTouchMetrics(touches);
-  gesture.twoFinger = true;
-  gesture.singleTouch = false;
-  gesture.moving = false;
-  gesture.scaling = false;
-  gesture.rotating = false;
-  gesture.lastDistance = metrics.distance;
-  gesture.lastAngle = metrics.angle;
-}
-
-function clearGestureState() {
-  gesture.singleTouch = false;
-  gesture.twoFinger = false;
-  gesture.moving = false;
-  gesture.scaling = false;
-  gesture.rotating = false;
-  gesture.dragAccumPx = 0;
-  gesture.hasDragWorldAnchor = false;
-}
-
-function movementBlocked() {
-  return gesture.twoFinger || gesture.scaling || gesture.rotating;
-}
+const gesture = dragController.gesture;
 
 function getTouchMetrics(touches) {
   const dx = touches[0].pageX - touches[1].pageX;
@@ -262,92 +208,6 @@ function applyPoseToModel(matrix) {
   modelRoot.rotation.z = 0;
 }
 
-function screenPointToWorldOnPlane(screenX, screenY, planeY, out) {
-  const cam = getActiveCamera();
-  const canvas = renderer.domElement;
-  const width = canvas.clientWidth || window.innerWidth;
-  const height = canvas.clientHeight || window.innerHeight;
-
-  dragNdc.set((screenX / width) * 2 - 1, -(screenY / height) * 2 + 1);
-  dragRaycaster.setFromCamera(dragNdc, cam);
-  dragPlane.set(worldUp, -planeY);
-  return dragRaycaster.ray.intersectPlane(dragPlane, out) !== null;
-}
-
-function translateModelByScreenPoint(screenX, screenY) {
-  const planeY = modelRoot.position.y;
-  if (!screenPointToWorldOnPlane(screenX, screenY, planeY, dragWorldPoint)) {
-    return;
-  }
-
-  if (!gesture.hasDragWorldAnchor) {
-    gesture.lastDragWorldX = dragWorldPoint.x;
-    gesture.lastDragWorldZ = dragWorldPoint.z;
-    gesture.hasDragWorldAnchor = true;
-    return;
-  }
-
-  modelRoot.position.x += dragWorldPoint.x - gesture.lastDragWorldX;
-  modelRoot.position.z += dragWorldPoint.z - gesture.lastDragWorldZ;
-
-  gesture.lastDragWorldX = dragWorldPoint.x;
-  gesture.lastDragWorldZ = dragWorldPoint.z;
-}
-
-function considerHorizontalPlaneForHeight(pose, modelPos, state) {
-  if (!pose) {
-    return;
-  }
-
-  tmpMatrix.fromArray(pose.transform.matrix);
-  if (!isHorizontalPoseFromMatrix(tmpMatrix)) {
-    return;
-  }
-
-  tmpMatrix.decompose(tmpPosition, tmpQuaternion, tmpScale);
-
-  const dx = tmpPosition.x - modelPos.x;
-  const dz = tmpPosition.z - modelPos.z;
-  const distSq = dx * dx + dz * dz;
-  const maxDistSq = PLANE_HEIGHT_XZ_RADIUS * PLANE_HEIGHT_XZ_RADIUS;
-
-  if (distSq <= maxDistSq && distSq < state.bestDistSq) {
-    state.bestDistSq = distSq;
-    state.bestY = tmpPosition.y;
-  }
-}
-
-function correctModelHeightFromPlanes(frame, localSpace) {
-  if (!placed || !model || !gesture.moving || !localSpace) {
-    return;
-  }
-
-  const modelPos = modelRoot.position;
-  const state = {
-    bestY: null,
-    bestDistSq: PLANE_HEIGHT_XZ_RADIUS * PLANE_HEIGHT_XZ_RADIUS
-  };
-
-  if (hitTestSource) {
-    for (const hit of frame.getHitTestResults(hitTestSource)) {
-      considerHorizontalPlaneForHeight(hit.getPose(localSpace), modelPos, state);
-    }
-  }
-
-  if (transientHitTestSource) {
-    const transientResults = frame.getHitTestResultsForTransientInput(transientHitTestSource);
-    for (const result of transientResults) {
-      for (const hit of result.results) {
-        considerHorizontalPlaneForHeight(hit.getPose(localSpace), modelPos, state);
-      }
-    }
-  }
-
-  if (state.bestY !== null) {
-    modelRoot.position.y = state.bestY;
-  }
-}
-
 window.addEventListener(
   "touchstart",
   (event) => {
@@ -357,18 +217,21 @@ window.addEventListener(
 
     if (event.touches.length === 1) {
       if (!gesture.twoFinger) {
-        resetSingleTouchGesture(event.touches[0]);
+        dragController.resetSingleTouchGesture(event.touches[0]);
       }
       return;
     }
 
     if (event.touches.length >= 2) {
-      resetTwoFingerGesture(event.touches);
+      dragController.resetTwoFingerGesture(event.touches, getTouchMetrics);
       event.preventDefault();
     }
   },
   { passive: false }
 );
+
+let lastDragFrame = null;
+let lastDragLocalSpace = null;
 
 window.addEventListener(
   "touchmove",
@@ -381,7 +244,7 @@ window.addEventListener(
       event.preventDefault();
 
       if (!gesture.twoFinger) {
-        resetTwoFingerGesture(event.touches);
+        dragController.resetTwoFingerGesture(event.touches, getTouchMetrics);
       }
 
       const metrics = getTouchMetrics(event.touches);
@@ -411,32 +274,15 @@ window.addEventListener(
       return;
     }
 
-    if (event.touches.length !== 1 || !gesture.singleTouch || movementBlocked()) {
+    if (event.touches.length !== 1 || !gesture.singleTouch || dragController.movementBlocked()) {
       return;
     }
 
     const touch = event.touches[0];
-    const dx = touch.pageX - gesture.lastScreenX;
-    const dy = touch.pageY - gesture.lastScreenY;
-
-    if (dx === 0 && dy === 0) {
-      return;
+    const didMove = dragController.onTouchMoveSingle(touch, lastDragFrame, lastDragLocalSpace);
+    if (didMove) {
+      event.preventDefault();
     }
-
-    gesture.dragAccumPx += Math.hypot(dx, dy);
-
-    if (!gesture.moving) {
-      if (gesture.dragAccumPx < DRAG_DEAD_ZONE_PX) {
-        return;
-      }
-      gesture.moving = true;
-      gesture.hasDragWorldAnchor = false;
-    }
-
-    event.preventDefault();
-    translateModelByScreenPoint(touch.pageX, touch.pageY);
-    gesture.lastScreenX = touch.pageX;
-    gesture.lastScreenY = touch.pageY;
   },
   { passive: false }
 );
@@ -447,7 +293,7 @@ function handleTouchEnd(event) {
   }
 
   if (event.touches.length === 0) {
-    clearGestureState();
+    dragController.clearGestureState();
     return;
   }
 
@@ -455,12 +301,12 @@ function handleTouchEnd(event) {
     gesture.twoFinger = false;
     gesture.scaling = false;
     gesture.rotating = false;
-    resetSingleTouchGesture(event.touches[0]);
+    dragController.resetSingleTouchGesture(event.touches[0]);
     return;
   }
 
   if (event.touches.length >= 2) {
-    resetTwoFingerGesture(event.touches);
+    dragController.resetTwoFingerGesture(event.touches, getTouchMetrics);
   }
 }
 
@@ -470,9 +316,11 @@ window.addEventListener("touchcancel", handleTouchEnd);
 let viewerSpace = null;
 let localSpace = null;
 let hitTestSource = null;
-let transientHitTestSource = null;
 
 renderer.setAnimationLoop((_, frame) => {
+  lastDragFrame = frame ?? null;
+  lastDragLocalSpace = localSpace;
+
   if (mixer) {
     mixer.update(clock.getDelta());
   }
@@ -494,10 +342,10 @@ renderer.setAnimationLoop((_, frame) => {
             entityTypes: ["plane"]
           })
           .then((source) => {
-            transientHitTestSource = source;
+            dragController.setTransientHitTestSource(source);
           })
           .catch(() => {
-            transientHitTestSource = null;
+            dragController.clearTransientHitTestSource();
           });
       });
 
@@ -509,36 +357,35 @@ renderer.setAnimationLoop((_, frame) => {
         viewerSpace = null;
         localSpace = null;
         hitTestSource = null;
-        transientHitTestSource = null;
+        dragController.clearTransientHitTestSource();
       });
     }
 
-    if (hitTestSource && localSpace) {
-      const hits = frame.getHitTestResults(hitTestSource);
-      let horizontalPose = null;
+    if (localSpace) {
+      if (hitTestSource && !placed) {
+        const hits = frame.getHitTestResults(hitTestSource);
+        let horizontalPose = null;
 
-      for (const hit of hits) {
-        const pose = hit.getPose(localSpace);
-        if (!pose) continue;
-        tmpMatrix.fromArray(pose.transform.matrix);
-        if (isHorizontalPoseFromMatrix(tmpMatrix)) {
-          horizontalPose = pose;
-          break;
+        for (const hit of hits) {
+          const pose = hit.getPose(localSpace);
+          if (!pose) continue;
+          tmpMatrix.fromArray(pose.transform.matrix);
+          if (isHorizontalPoseFromMatrix(tmpMatrix)) {
+            horizontalPose = pose;
+            break;
+          }
         }
-      }
 
-      if (!placed) {
         if (horizontalPose) {
           reticle.visible = true;
           reticle.matrix.fromArray(horizontalPose.transform.matrix);
         } else {
           reticle.visible = false;
         }
-      } else {
+      } else if (placed) {
         reticle.visible = false;
+        dragController.updateSurfaceDrag(frame, localSpace);
       }
-
-      correctModelHeightFromPlanes(frame, localSpace);
     }
   }
 
