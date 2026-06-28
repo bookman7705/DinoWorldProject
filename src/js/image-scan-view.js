@@ -9,6 +9,7 @@ import {
   IMAGE_SCAN_TARGETS,
   resolveImageScanModelScale,
   resolveImageScanModelRotation,
+  resolveImageScanModelPosition,
   resolveImageScanPlacementRotationX,
   getImageScanTypeFromQuery,
   validateImageScanTargetAssets
@@ -349,7 +350,7 @@ function attachScanModel(target) {
   const [, ry, rz] = resolveImageScanModelRotation(target);
   model.scale.set(sx, sy, sz);
   model.rotation.set(0, ry, rz);
-  model.position.set(...target.modelPosition);
+  model.position.set(...resolveImageScanModelPosition(target, scanTypeConfig));
 
   placementGroup.rotation.x = resolveImageScanPlacementRotationX(scanTypeConfig);
 
