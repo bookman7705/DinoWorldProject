@@ -4,8 +4,6 @@ import { ARButton } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/
 import { getModelFromQuery } from "./model-registry.js";
 import { buildMenuBackUrl } from "./menu-navigation.js";
 import { loadGltf } from "./gltf-loader.js";
-import { isAltDownloadSourceEnabled } from "./alt-download-settings.js";
-import { loadGltfViaAltDownload } from "./alt-gltf-loader.js";
 import { playModelAnimation } from "./gltf-animations.js";
 import {
   configureGltfMaterials,
@@ -13,16 +11,16 @@ import {
   setupArSceneLighting
 } from "./gltf-materials.js";
 import { CONTACT_SHADOW_ENABLED, createContactShadow } from "./ar-contact-shadow.js";
-import { isDebugMode } from "./debug.js";
 import {
   accumulateSingleTouchMove,
   clearGesture,
+  clearTwoFingerGesture,
   createGestureState,
   lockGroundAtPlacement,
   movementBlocked,
+  processTwoFingerGesture,
   resetSingleTouch,
   resetTwoFinger,
-  resetSurfaceAnchor,
   updateModelGrounding
 } from "./ar-surface-drag.js";
 
@@ -31,7 +29,6 @@ const helpEl = document.getElementById("ar-help");
 const titleEl = document.getElementById("ar-model-name");
 const scaleEl = document.getElementById("ar-scale");
 const backBtn = document.getElementById("back-btn");
-const debugMode = isDebugMode(window.location.search);
 
 backBtn.addEventListener("click", () => {
   window.location.href = buildMenuBackUrl(window.location.search).toString();
@@ -65,6 +62,9 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.xr.enabled = true;
 configureGltfRenderer(renderer, { exposure: 1.2 });
 document.body.appendChild(renderer.domElement);
+renderer.domElement.style.touchAction = "none";
+
+const touchTarget = renderer.domElement;
 
 window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -92,12 +92,7 @@ let baseScale = 0.1;
 let needsGroundLock = false;
 
 function updateScaleDisplay() {
-  if (!scaleEl) {
-    return;
-  }
-
-  if (!debugMode || !modelRoot || !placed) {
-    scaleEl.hidden = true;
+  if (!modelRoot || !placed || !scaleEl) {
     return;
   }
 
@@ -107,21 +102,7 @@ function updateScaleDisplay() {
 }
 
 statusEl.textContent = "Loading model...";
-
-function loadModelFile(loader, modelFilename, { onLoad, onError, fileIndex = 1, fileCount = 1 }) {
-  if (isAltDownloadSourceEnabled()) {
-    loadGltfViaAltDownload(loader, modelFilename, { fileIndex, fileCount })
-      .then(({ gltf }) => onLoad(gltf))
-      .catch((error) => onError?.(error));
-    return;
-  }
-
-  loadGltf(loader, modelFilename, { onLoad, onError });
-}
-
-loadModelFile(loader, selection.entry.modelFile, {
-  fileIndex: 1,
-  fileCount: 1,
+loadGltf(loader, selection.entry.modelFile, {
   onLoad: (gltf) => {
     modelRoot = new THREE.Group();
     model = gltf.scene;
@@ -179,9 +160,6 @@ const tmpScale = new THREE.Vector3();
 const tmpNormal = new THREE.Vector3();
 const worldUp = new THREE.Vector3(0, 1, 0);
 
-const ROTATE_DEAD_ZONE_RAD = 0.04;
-const SCALE_DEAD_ZONE_RATIO = 0.015;
-
 const gesture = createGestureState();
 
 function getActiveCamera() {
@@ -189,19 +167,12 @@ function getActiveCamera() {
 }
 
 function getTouchMetrics(touches) {
-  const dx = touches[0].pageX - touches[1].pageX;
-  const dy = touches[0].pageY - touches[1].pageY;
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
   return {
     distance: Math.hypot(dx, dy),
     angle: Math.atan2(dy, dx)
   };
-}
-
-function normalizeAngle(angle) {
-  let result = angle;
-  while (result > Math.PI) result -= Math.PI * 2;
-  while (result < -Math.PI) result += Math.PI * 2;
-  return result;
 }
 
 function isHorizontalPoseFromMatrix(matrix) {
@@ -219,7 +190,7 @@ function applyPoseToModel(matrix) {
 
 // --- Layer 1: touch input state only (no raycasts / hit tests) ---
 
-window.addEventListener(
+touchTarget.addEventListener(
   "touchstart",
   (event) => {
     if (!placed || !model) {
@@ -241,7 +212,7 @@ window.addEventListener(
   { passive: false }
 );
 
-window.addEventListener(
+touchTarget.addEventListener(
   "touchmove",
   (event) => {
     if (!placed || !model) {
@@ -256,29 +227,7 @@ window.addEventListener(
       }
 
       const metrics = getTouchMetrics(event.touches);
-      const scaleFactor = metrics.distance / Math.max(gesture.lastDistance, 1);
-      const angleDelta = normalizeAngle(metrics.angle - gesture.lastAngle);
-
-      if (Math.abs(scaleFactor - 1) > SCALE_DEAD_ZONE_RATIO) {
-        gesture.scaling = true;
-      }
-
-      if (Math.abs(angleDelta) > ROTATE_DEAD_ZONE_RAD) {
-        gesture.rotating = true;
-      }
-
-      if (gesture.scaling) {
-        const nextScale = THREE.MathUtils.clamp(modelRoot.scale.x * scaleFactor, 0.04, 10);
-        modelRoot.scale.setScalar(nextScale);
-        updateScaleDisplay();
-      }
-
-      if (gesture.rotating) {
-        modelRoot.rotation.y -= angleDelta;
-      }
-
-      gesture.lastDistance = metrics.distance;
-      gesture.lastAngle = metrics.angle;
+      processTwoFingerGesture(gesture, metrics);
       return;
     }
 
@@ -305,9 +254,7 @@ function handleTouchEnd(event) {
   }
 
   if (event.touches.length === 1) {
-    gesture.twoFinger = false;
-    gesture.scaling = false;
-    gesture.rotating = false;
+    clearTwoFingerGesture(gesture);
     if (!gesture.singleTouch) {
       resetSingleTouch(gesture, event.touches[0]);
     }
@@ -319,8 +266,8 @@ function handleTouchEnd(event) {
   }
 }
 
-window.addEventListener("touchend", handleTouchEnd);
-window.addEventListener("touchcancel", handleTouchEnd);
+touchTarget.addEventListener("touchend", handleTouchEnd);
+touchTarget.addEventListener("touchcancel", handleTouchEnd);
 
 // --- Layer 2: world updates (animation loop only) ---
 
@@ -353,8 +300,9 @@ renderer.setAnimationLoop((_, frame) => {
         viewerSpace = null;
         localSpace = null;
         hitTestSource = null;
-        resetSurfaceAnchor();
         needsGroundLock = false;
+        placed = false;
+        helpEl.hidden = false;
       });
     }
 
@@ -387,7 +335,9 @@ renderer.setAnimationLoop((_, frame) => {
           needsGroundLock = false;
         }
 
-        updateModelGrounding(frame, hitTestSource, localSpace, modelRoot, gesture, getActiveCamera());
+        if (updateModelGrounding(modelRoot, gesture, getActiveCamera())) {
+          updateScaleDisplay();
+        }
       }
     }
   }
