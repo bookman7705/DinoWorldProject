@@ -158,8 +158,8 @@ export function updateDragFromGesture(gesture, modelRoot, camera) {
   camForward.normalize();
 
   const scale = PX_TO_WORLD;
-  modelRoot.position.x += camRight.x * -oriented.x * scale + camForward.x * oriented.y * scale;
-  modelRoot.position.z += camRight.z * -oriented.x * scale + camForward.z * oriented.y * scale;
+  modelRoot.position.x += camRight.x * oriented.x * scale + camForward.x * oriented.y * scale;
+  modelRoot.position.z += camRight.z * oriented.x * scale + camForward.z * oriented.y * scale;
 
   gesture.pendingDeltaX = 0;
   gesture.pendingDeltaY = 0;
