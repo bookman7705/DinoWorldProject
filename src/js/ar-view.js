@@ -21,6 +21,7 @@ import {
   processTwoFingerGesture,
   resetSingleTouch,
   resetTwoFinger,
+  getTwoFingerMetricsFromTouchList,
   updateModelGrounding
 } from "./ar-surface-drag.js";
 
@@ -173,12 +174,7 @@ function getActiveCamera() {
 }
 
 function getTouchMetrics(touches) {
-  const dx = touches[0].clientX - touches[1].clientX;
-  const dy = touches[0].clientY - touches[1].clientY;
-  return {
-    distance: Math.hypot(dx, dy),
-    angle: Math.atan2(dy, dx)
-  };
+  return getTwoFingerMetricsFromTouchList(touches);
 }
 
 function isHorizontalPoseFromMatrix(matrix) {
@@ -226,11 +222,20 @@ function onTouchMove(event) {
   if (event.touches.length >= 2) {
     event.preventDefault();
 
+    if (gesture.twoFingerMode === "rotate") {
+      processTwoFingerGesture(gesture, getTouchMetrics(event.touches));
+      return;
+    }
+
     if (!gesture.twoFinger) {
       resetTwoFinger(gesture, event.touches, getTouchMetrics);
     }
 
     processTwoFingerGesture(gesture, getTouchMetrics(event.touches));
+    return;
+  }
+
+  if (gesture.twoFinger || gesture.twoFingerMode === "rotate") {
     return;
   }
 
