@@ -3,6 +3,8 @@ import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/js
 import { getModelFromQuery, ISLAND_WORLD_FILE } from "./model-registry.js";
 import { buildMenuBackUrl } from "./menu-navigation.js";
 import { loadGltf } from "./gltf-loader.js";
+import { isAltDownloadSourceEnabled } from "./alt-download-settings.js";
+import { loadGltfViaAltDownload } from "./alt-gltf-loader.js";
 import { CameraController } from "./view-3d/camera-controller.js";
 import { configureGltfMaterials, configureGltfRenderer } from "./gltf-materials.js";
 import { setupSceneLighting } from "./view-3d/scene-lights.js";
@@ -87,7 +89,20 @@ const mixers = [];
 
 statusEl.textContent = "Loading island world...";
 
-loadGltf(loader, ISLAND_WORLD_FILE, {
+function loadModelFile(loader, modelFilename, { onLoad, onError, fileIndex, fileCount }) {
+  if (isAltDownloadSourceEnabled()) {
+    loadGltfViaAltDownload(loader, modelFilename, { fileIndex, fileCount })
+      .then(({ gltf }) => onLoad(gltf))
+      .catch((error) => onError?.(error));
+    return;
+  }
+
+  loadGltf(loader, modelFilename, { onLoad, onError });
+}
+
+loadModelFile(loader, ISLAND_WORLD_FILE, {
+  fileIndex: 1,
+  fileCount: 2,
   onLoad: (gltf) => {
     const island = gltf.scene;
     island.position.set(0, 0, 0);
@@ -110,7 +125,9 @@ loadGltf(loader, ISLAND_WORLD_FILE, {
 });
 
 function loadDinosaur() {
-  loadGltf(loader, selection.entry.modelFile, {
+  loadModelFile(loader, selection.entry.modelFile, {
+    fileIndex: 2,
+    fileCount: 2,
     onLoad: (gltf) => {
       const dinosaur = gltf.scene;
       configureGltfMaterials(dinosaur);

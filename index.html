@@ -8,6 +8,18 @@
 </head>
 <body>
   <main class="menu-screen">
+    <button
+      id="settings-btn"
+      class="menu-settings-btn"
+      type="button"
+      aria-label="Open settings"
+      aria-haspopup="dialog"
+      aria-controls="settings-menu"
+      aria-expanded="false"
+    >
+      <img src="./gfx/settings.svg" alt="" width="24" height="24" class="menu-settings-icon">
+    </button>
+
     <section class="menu-card">
       <p class="eyebrow">Dino World</p>
       <h1>Choose View Mode</h1>
@@ -22,6 +34,33 @@
       <p id="status-message" class="status-message" aria-live="polite"></p>
     </section>
   </main>
+
+  <div
+    id="settings-menu"
+    class="settings-overlay"
+    hidden
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="settings-menu-title"
+  >
+    <div class="settings-panel">
+      <h2 id="settings-menu-title" class="settings-title">Settings</h2>
+      <div class="settings-list" role="group" aria-labelledby="settings-menu-title">
+        <label class="settings-checkbox-row" for="alt-download-source">
+          <span class="settings-checkbox-label">Alt Download Source</span>
+          <input
+            type="checkbox"
+            id="alt-download-source"
+            class="settings-checkbox"
+            name="alt-download-source"
+          >
+        </label>
+        <button type="button" class="settings-option">Display</button>
+        <button type="button" class="settings-option">About</button>
+      </div>
+      <button type="button" class="settings-close-btn">Close</button>
+    </div>
+  </div>
 
   <script type="module" src="./src/js/app.js"></script>
 </body>

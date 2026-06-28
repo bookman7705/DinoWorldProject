@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USDZ Download Test</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    max-width: 600px;
+    margin: 40px auto;
+    padding: 20px;
+}
+
+progress {
+    width: 100%;
+    height: 30px;
+}
+
+button {
+    padding: 12px 24px;
+    font-size: 18px;
+    cursor: pointer;
+    margin-top: 20px;
+}
+
+#status {
+    margin-top: 20px;
+    font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<h2>USDZ Download Test</h2>
+
+<progress id="progress" value="0" max="100"></progress>
+
+<div id="percent">0%</div>
+
+<button id="downloadBtn">Download USDZ</button>
+
+<div id="status"></div>
+
+<script>
+
+const url = "https://model-gateway.shawnk7705.workers.dev/ar-models/rex.usdz";
+//const url = "https://raw.githubusercontent.com/bookman7705/my-monster-games/main/IslandWorld.glb"
+
+const progress = document.getElementById("progress");
+const percent = document.getElementById("percent");
+const status = document.getElementById("status");
+
+document.getElementById("downloadBtn").addEventListener("click", async () => {
+
+    progress.value = 0;
+    percent.textContent = "0%";
+    status.textContent = "Starting download...";
+
+    try {
+
+        const response = await fetch(url, {
+            cache: "no-store"
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const total = Number(response.headers.get("Content-Length"));
+
+        const reader = response.body.getReader();
+
+        let received = 0;
+        const chunks = [];
+
+        while (true) {
+
+            const { done, value } = await reader.read();
+
+            if (done)
+                break;
+
+            chunks.push(value);
+
+            received += value.length;
+
+            if (total) {
+
+                const p = Math.round(received / total * 100);
+
+                progress.value = p;
+                percent.textContent = p + "%";
+
+            } else {
+
+                percent.textContent =
+                    (received / 1024 / 1024).toFixed(2) + " MB";
+
+            }
+
+        }
+
+        const blob = new Blob(chunks, {
+            type: "model/vnd.usdz+zip"
+        });
+
+        status.textContent =
+            "Download complete (" +
+            (blob.size / 1024 / 1024).toFixed(2) +
+            " MB)";
+
+        // Save the file
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "rex.usdz";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        URL.revokeObjectURL(a.href);
+
+    } catch (err) {
+
+        console.error(err);
+
+        status.textContent = err.message;
+
+    }
+
+});
+
+</script>
+
+</body>
+</html>

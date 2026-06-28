@@ -1,6 +1,9 @@
 import { getModelFromQuery } from "./model-registry.js";
 import { resolveModelUrl } from "./resolve-model-url.js";
 import { buildMenuBackUrl } from "./menu-navigation.js";
+import { isAltDownloadSourceEnabled } from "./alt-download-settings.js";
+import { downloadModelToObjectUrl } from "./alt-model-download.js";
+import { createAltDownloadProgress } from "./alt-download-ui.js";
 
 const titleEl = document.getElementById("ar-model-name");
 const statusEl = document.getElementById("ar-status");
@@ -32,8 +35,21 @@ if (selection.entry.animation) {
 statusEl.textContent = "Model loading...";
 
 let iosSrcUrl = null;
+const altObjectUrls = new Set();
 
-function initViewer() {
+window.addEventListener("pagehide", () => {
+  for (const objectUrl of altObjectUrls) {
+    URL.revokeObjectURL(objectUrl);
+  }
+  altObjectUrls.clear();
+});
+
+function trackAltObjectUrl(objectUrl) {
+  altObjectUrls.add(objectUrl);
+  return objectUrl;
+}
+
+function initViewerDefault() {
   try {
     const modelUrl = resolveModelUrl(selection.entry.modelFile);
     viewer.src = modelUrl;
@@ -48,9 +64,48 @@ function initViewer() {
   }
 }
 
+async function initViewerViaAltDownload() {
+  const progress = createAltDownloadProgress({ fileIndex: 1, fileCount: 1 });
+
+  try {
+    if (!selection.entry.iosFile) {
+      throw new Error("Missing iOS USDZ source for this model.");
+    }
+
+    const usdz = await downloadModelToObjectUrl(selection.entry.iosFile, {
+      mimeType: "model/vnd.usdz+zip",
+      onProgress: (stats) => progress.update(stats)
+    });
+
+    iosSrcUrl = trackAltObjectUrl(usdz.objectUrl);
+    viewer.setAttribute("ios-src", iosSrcUrl);
+    viewer.src = iosSrcUrl;
+
+    progress.close();
+    statusEl.textContent = "Ready. Tap View in AR to place on a horizontal surface.";
+  } catch (error) {
+    console.error(error);
+    progress.close();
+    statusEl.textContent = error?.message || "Model failed to load.";
+  }
+}
+
+function initViewer() {
+  if (isAltDownloadSourceEnabled()) {
+    void initViewerViaAltDownload();
+    return;
+  }
+
+  initViewerDefault();
+}
+
 initViewer();
 
 viewer.addEventListener("load", () => {
+  if (isAltDownloadSourceEnabled()) {
+    return;
+  }
+
   statusEl.textContent = "Ready. Tap View in AR to place on a horizontal surface.";
 });
 

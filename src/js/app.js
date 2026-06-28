@@ -1,6 +1,9 @@
 import { getModelFromQuery, getAvailableModels } from "./model-registry.js";
 import { isDebugMode } from "./debug.js";
 import { promptModelSelection } from "./model-picker.js";
+import { initSettingsMenu } from "./settings-menu.js";
+
+initSettingsMenu();
 
 const modelInfoEl = document.getElementById("model-info");
 const statusMessageEl = document.getElementById("status-message");

@@ -150,15 +150,15 @@ export function getImageScanTarget(id) {
 export const IMAGE_SCAN_TARGETS = [
   {
     id: "mosa",
-    mindFile: "mind/bron.mind",
+    mindFile: "mind/targets.mind",
     trackerJpg: "tracker_jpg/Mosasaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    modelScale: 2
+    modelScale: 1.5
   },
   {
     id: "pach",
-    mindFile: "mind/bron.mind",
+    mindFile: "mind/targets.mind",
     trackerJpg: "tracker_jpg/Pachycephalosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
@@ -166,15 +166,15 @@ export const IMAGE_SCAN_TARGETS = [
   },
   {
     id: "rex",
-    mindFile: "mind/bron.mind",
+    mindFile: "mind/targets.mind",
     trackerJpg: "tracker_jpg/Tyrannosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    modelScale: 1
+    modelScale: 0.5
   },
   {
     id: "stega",
-    mindFile: "mind/bron.mind",
+    mindFile: "mind/targets.mind",
     trackerJpg: "tracker_jpg/Stegosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
@@ -182,34 +182,34 @@ export const IMAGE_SCAN_TARGETS = [
   },
   {
     id: "styg",
-    mindFile: "mind/bron.mind",
+    mindFile: "mind/targets.mind",
     trackerJpg: "tracker_jpg/Stygimoloch.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    modelScale: 4
+    modelScale: 1
   },
   {
     id: "bron",
-    mindFile: "mind/bron.mind",
+    mindFile: "mind/targets.mind",
     trackerJpg: "tracker_jpg/Brontosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    modelScale: 2
+    modelScale: 1
   },
   {
     id: "tric",
-    mindFile: "mind/bron.mind",
+    mindFile: "mind/targets.mind",
     trackerJpg: "tracker_jpg/Triceratops.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    modelScale: 3
+    modelScale: 1
   },
   {
     id: "raptor",
-    mindFile: "mind/bron.mind",
+    mindFile: "mind/targets.mind",
     trackerJpg: "tracker_jpg/Velociraptor.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    modelScale: 0.34
+    modelScale: 0.20
   }
 ];

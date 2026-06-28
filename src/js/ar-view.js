@@ -4,6 +4,8 @@ import { ARButton } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/
 import { getModelFromQuery } from "./model-registry.js";
 import { buildMenuBackUrl } from "./menu-navigation.js";
 import { loadGltf } from "./gltf-loader.js";
+import { isAltDownloadSourceEnabled } from "./alt-download-settings.js";
+import { loadGltfViaAltDownload } from "./alt-gltf-loader.js";
 import { playModelAnimation } from "./gltf-animations.js";
 import {
   configureGltfMaterials,
@@ -86,7 +88,21 @@ function updateScaleDisplay() {
 }
 
 statusEl.textContent = "Loading model...";
-loadGltf(loader, selection.entry.modelFile, {
+
+function loadModelFile(loader, modelFilename, { onLoad, onError, fileIndex = 1, fileCount = 1 }) {
+  if (isAltDownloadSourceEnabled()) {
+    loadGltfViaAltDownload(loader, modelFilename, { fileIndex, fileCount })
+      .then(({ gltf }) => onLoad(gltf))
+      .catch((error) => onError?.(error));
+    return;
+  }
+
+  loadGltf(loader, modelFilename, { onLoad, onError });
+}
+
+loadModelFile(loader, selection.entry.modelFile, {
+  fileIndex: 1,
+  fileCount: 1,
   onLoad: (gltf) => {
     modelRoot = new THREE.Group();
     model = gltf.scene;

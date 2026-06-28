@@ -22,6 +22,8 @@ import {
 import { buildMenuBackUrl } from "./menu-navigation.js";
 import { promptModelSelection } from "./model-picker.js";
 import { loadGltf } from "./gltf-loader.js";
+import { isAltDownloadSourceEnabled } from "./alt-download-settings.js";
+import { loadGltfViaAltDownload } from "./alt-gltf-loader.js";
 import { configureGltfMaterials } from "./gltf-materials.js";
 import { playModelAnimation } from "./gltf-animations.js";
 import { createImageScanGestureController } from "./image-scan-gestures.js";
@@ -248,6 +250,13 @@ async function resolveScanTarget() {
 }
 
 function loadGltfAsync(modelFile) {
+  if (isAltDownloadSourceEnabled()) {
+    return loadGltfViaAltDownload(loader, modelFile, {
+      fileIndex: 1,
+      fileCount: 1
+    }).then(({ gltf }) => gltf);
+  }
+
   return new Promise((resolve, reject) => {
     loadGltf(loader, modelFile, { onLoad: resolve, onError: reject });
   });

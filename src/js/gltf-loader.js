@@ -6,7 +6,7 @@ export { getModelFilename };
 /**
  * Load a GLB/GLTF via GLTFLoader.load() — local ./models or Cloudflare gateway (HTTP 200 only).
  */
-export function loadGltf(loader, modelFilename, { onLoad, onError } = {}) {
+export function loadGltf(loader, modelFilename, { onLoad, onProgress, onError } = {}) {
   let filename;
   let url;
 
@@ -19,7 +19,7 @@ export function loadGltf(loader, modelFilename, { onLoad, onError } = {}) {
     return;
   }
 
-  loader.load(url, onLoad, undefined, (error) => {
+  loader.load(url, onLoad, onProgress, (error) => {
     console.error(`[gltf] Load failed for ${filename}`, error);
     onError?.(error, [url]);
   });
