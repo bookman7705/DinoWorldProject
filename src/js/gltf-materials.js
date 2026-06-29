@@ -181,15 +181,18 @@ export function configureGltfRenderer(renderer, { exposure = 1.2 } = {}) {
  * Key light casts shadows; returns handles so AR view can track the placed model.
  */
 export function setupArSceneLighting(scene) {
-  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+  // Slightly higher ambient lifts shadowed areas without flattening the key/fill contrast.
+  scene.add(new THREE.AmbientLight(0xffffff, 0.3));
 
-  const hemisphere = new THREE.HemisphereLight(0xffffff, 0x556677, 0.9);
+  const hemisphere = new THREE.HemisphereLight(0xffffff, 0x556677, 1.0);
   scene.add(hemisphere);
 
-  const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+  // Key intensity pulled back so cast shadows read lighter on the receiver.
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.05);
   keyLight.position.set(5, 10, 5);
   keyLight.castShadow = true;
-  keyLight.shadow.mapSize.set(2048, 2048);
+  // 1024 softens shadow edges via PCF sampling; sufficient for the tight ±1.5 frustum.
+  keyLight.shadow.mapSize.set(1024, 1024);
   keyLight.shadow.camera.left = -1.5;
   keyLight.shadow.camera.right = 1.5;
   keyLight.shadow.camera.top = 1.5;
@@ -205,6 +208,7 @@ export function setupArSceneLighting(scene) {
   keyLight.target = keyLightTarget;
   scene.add(keyLight);
 
+  // Fill stays non-shadow-casting; unchanged intensity preserves shape without deepening shadows.
   const fillLight = new THREE.DirectionalLight(0xffffff, 0.35);
   fillLight.position.set(-6, 6, -4);
   scene.add(fillLight);

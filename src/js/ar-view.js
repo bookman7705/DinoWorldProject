@@ -122,6 +122,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.xr.enabled = true;
 configureGltfRenderer(renderer, { exposure: 1.2 });
 renderer.shadowMap.enabled = true;
+// PCF soft filtering — pairs with lower shadow map resolution for gentler penumbra.
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 renderer.domElement.style.touchAction = "none";
@@ -140,10 +141,11 @@ window.addEventListener("resize", () => {
 const KEY_LIGHT_OFFSET = new THREE.Vector3(5, 10, 5);
 const { keyLight, keyLightTarget } = setupArSceneLighting(scene);
 
-// Invisible floor patch that only shows the key light's shadow.
+// ShadowMaterial: invisible plane that only darkens where the key light is occluded.
+// Low opacity keeps grounding subtle over the live camera feed.
 const shadowPlane = new THREE.Mesh(
   new THREE.PlaneGeometry(4, 4),
-  new THREE.ShadowMaterial({ opacity: 0.45 })
+  new THREE.ShadowMaterial({ opacity: 0.12 })
 );
 shadowPlane.rotation.x = -Math.PI / 2;
 shadowPlane.receiveShadow = true;
