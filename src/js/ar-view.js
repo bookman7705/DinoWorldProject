@@ -142,53 +142,69 @@ const KEY_LIGHT_HEIGHT = 10;
 
 const { keyLight, keyLightTarget } = setupArSceneLighting(scene);
 
+/** Radial falloff tuning — tight fade for an AR “sticker on floor” contact look. */
+const SHADOW_RECEIVER_OPACITY = 0.12;
+const SHADOW_FALLOFF_INNER = 0.0;
+const SHADOW_FALLOFF_OUTER = 0.6;
+const SHADOW_FALLOFF_POWER = 2.2;
+
 /**
- * Shadow receiver with radial opacity falloff — extends ShadowMaterial so Three.js
- * wires shadow-map uniforms correctly (custom ShaderMaterial crashes on mobile).
+ * Shadow receiver with aggressive radial alpha falloff.
+ * Uses ShadowMaterial unchanged for shadow-map evaluation; only the final
+ * fragment alpha is post-processed (safe on Android WebXR).
  */
-function createRadialShadowReceiverMaterial(opacity = 0.12) {
+function createRadialShadowReceiverMaterial(opacity = SHADOW_RECEIVER_OPACITY) {
   const material = new THREE.ShadowMaterial({ opacity });
 
-  material.customProgramCacheKey = () => "ar-radial-shadow-receiver";
+  material.customProgramCacheKey = () => "ar-radial-shadow-receiver-v2";
 
   material.onBeforeCompile = (shader) => {
     shader.defines = { ...shader.defines, USE_UV: "" };
-    shader.uniforms.falloffInner = { value: 0.0 };
-    shader.uniforms.falloffOuter = { value: 0.85 };
+    shader.uniforms.falloffInner = { value: SHADOW_FALLOFF_INNER };
+    shader.uniforms.falloffOuter = { value: SHADOW_FALLOFF_OUTER };
+    shader.uniforms.falloffPower = { value: SHADOW_FALLOFF_POWER };
 
-    shader.vertexShader = shader.vertexShader
-      .replace(
-        "#include <common>",
-        "#include <common>\n#include <uv_pars_vertex>"
-      )
-      .replace(
-        "#include <begin_vertex>",
-        "#include <uv_vertex>\n#include <begin_vertex>"
-      );
+    // Pass UVs through the stock shadow vertex shader.
+    if (!shader.vertexShader.includes("uv_pars_vertex")) {
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", "#include <common>\n#include <uv_pars_vertex>")
+        .replace("#include <begin_vertex>", "#include <uv_vertex>\n#include <begin_vertex>");
+    }
 
-    shader.fragmentShader = shader.fragmentShader
-      .replace(
+    if (!shader.fragmentShader.includes("uv_pars_fragment")) {
+      shader.fragmentShader = shader.fragmentShader.replace(
         "#include <common>",
         `#include <common>
 #include <uv_pars_fragment>
 uniform float falloffInner;
-uniform float falloffOuter;`
-      )
-      .replace(
-        "gl_FragColor = vec4( color, opacity * ( 1.0 - getShadowMask() ) );",
-        `float dist = length( vUv - 0.5 ) * 2.0;
-float radial = 1.0 - smoothstep( falloffInner, falloffOuter, dist );
-gl_FragColor = vec4( color, opacity * ( 1.0 - getShadowMask() ) * radial );`
+uniform float falloffOuter;
+uniform float falloffPower;`
       );
+    }
+
+    // Post-process only: capture Three.js shadow alpha, then shape with radial falloff.
+    const outputPattern = /gl_FragColor\s*=\s*vec4\(\s*color\s*,\s*(.+?)\s*\)\s*;/;
+    if (!shader.fragmentShader.match(outputPattern)) {
+      return;
+    }
+
+    shader.fragmentShader = shader.fragmentShader.replace(
+      outputPattern,
+      `float shadowAlpha = $1;
+	float dist = length( vUv - 0.5 ) * 2.0;
+	float radial = 1.0 - smoothstep( falloffInner, falloffOuter, dist );
+	radial = pow( radial, falloffPower );
+	gl_FragColor = vec4( color, shadowAlpha * radial );`
+    );
   };
 
   return material;
 }
 
-// Invisible floor patch; only shadow darkening is visible (with radial fade at edges).
+// Smaller receiver — radial fade handles edge softness (avoids a wide flat disk).
 const shadowPlane = new THREE.Mesh(
-  new THREE.PlaneGeometry(4, 4),
-  createRadialShadowReceiverMaterial(0.12)
+  new THREE.PlaneGeometry(3, 3),
+  createRadialShadowReceiverMaterial(SHADOW_RECEIVER_OPACITY)
 );
 shadowPlane.rotation.x = -Math.PI / 2;
 shadowPlane.receiveShadow = true;
