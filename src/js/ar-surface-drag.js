@@ -97,21 +97,6 @@ export function lockGroundAtPlacement(frame, hitTestSource, localSpace, modelRoo
   }
 }
 
-/** Keep model Y on the detected floor at its current XZ (prevents float/slide on camera move). */
-export function snapModelGroundY(frame, hitTestSource, localSpace, modelRoot) {
-  if (!frame || !hitTestSource || !localSpace || !modelRoot) return false;
-
-  const hits = frame.getHitTestResults(hitTestSource);
-  const plane = getBestHorizontalPlane(hits, localSpace, modelRoot.position);
-
-  if (plane) {
-    modelRoot.position.y = plane.y;
-    return true;
-  }
-
-  return false;
-}
-
 /** Per-frame finger separation change below this is treated as twist, not pinch. */
 const PINCH_FRAME_STABLE_RATIO = 0.005;
 
@@ -330,8 +315,6 @@ export function createGestureState() {
     rotating: false,
     /** Set once pinch or twist engages; blocks single-finger drag until all touches lift. */
     transformEngaged: false,
-    /** True after single-finger drag crosses the dead zone (used for re-anchor on release). */
-    dragEngaged: false,
     startX: 0,
     startY: 0,
     lastX: 0,
@@ -394,7 +377,6 @@ export function clearGesture(gesture) {
   gesture.singleTouch = false;
   gesture.twoFinger = false;
   gesture.dragging = false;
-  gesture.dragEngaged = false;
   gesture.transformEngaged = false;
   gesture.dragAccumPx = 0;
   gesture.pendingDeltaX = 0;
@@ -423,7 +405,6 @@ export function accumulateSingleTouchMove(gesture, touch) {
       return false;
     }
     gesture.dragging = true;
-    gesture.dragEngaged = true;
   }
 
   gesture.pendingDeltaX += dx;
