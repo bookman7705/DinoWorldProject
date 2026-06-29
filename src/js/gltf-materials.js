@@ -187,9 +187,9 @@ export function setupArSceneLighting(scene) {
   const hemisphere = new THREE.HemisphereLight(0xffffff, 0x556677, 1.0);
   scene.add(hemisphere);
 
-  // Key intensity pulled back so cast shadows read lighter on the receiver.
+  // Overhead key — updated each frame to sit directly above the placed model.
   const keyLight = new THREE.DirectionalLight(0xffffff, 1.05);
-  keyLight.position.set(5, 10, 5);
+  keyLight.position.set(0, 10, 0);
   keyLight.castShadow = true;
   // 1024 softens shadow edges via PCF sampling; sufficient for the tight ±1.5 frustum.
   keyLight.shadow.mapSize.set(1024, 1024);

@@ -137,15 +137,66 @@ window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-/** Key light offset from the model anchor — preserves the original rig direction. */
-const KEY_LIGHT_OFFSET = new THREE.Vector3(5, 10, 5);
+/** Height of the key directional above the model anchor (world Y). */
+const KEY_LIGHT_HEIGHT = 10;
+
 const { keyLight, keyLightTarget } = setupArSceneLighting(scene);
 
-// ShadowMaterial: invisible plane that only darkens where the key light is occluded.
-// Low opacity keeps grounding subtle over the live camera feed.
+/**
+ * Shadow receiver with radial opacity falloff — strongest under the model,
+ * fading toward the plane edges (same shadow-map pipeline as ShadowMaterial).
+ */
+function createRadialShadowReceiverMaterial(opacity = 0.12) {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    lights: true,
+    uniforms: {
+      opacity: { value: opacity },
+      // UV distance where falloff begins / ends (0 = center, 1 = plane edge).
+      falloffInner: { value: 0.0 },
+      falloffOuter: { value: 0.85 },
+    },
+    vertexShader: `
+      #include <common>
+      #include <uv_pars_vertex>
+      #include <shadowmap_pars_vertex>
+
+      void main() {
+        #include <uv_vertex>
+        #include <begin_vertex>
+        #include <project_vertex>
+        #include <worldpos_vertex>
+        #include <shadowmap_vertex>
+      }
+    `,
+    fragmentShader: `
+      #include <uv_pars_fragment>
+      uniform float opacity;
+      uniform float falloffInner;
+      uniform float falloffOuter;
+
+      #include <common>
+      #include <packing>
+      #include <bsdfs>
+      #include <lights_pars_begin>
+      #include <shadowmap_pars_fragment>
+      #include <shadowmask_pars_fragment>
+
+      void main() {
+        float shadow = 1.0 - getShadowMask();
+        float dist = length(vUv - 0.5) * 2.0;
+        float radial = 1.0 - smoothstep(falloffInner, falloffOuter, dist);
+        gl_FragColor = vec4(0.0, 0.0, 0.0, opacity * shadow * radial);
+      }
+    `,
+  });
+}
+
+// Invisible floor patch; only shadow darkening is visible (with radial fade at edges).
 const shadowPlane = new THREE.Mesh(
   new THREE.PlaneGeometry(4, 4),
-  new THREE.ShadowMaterial({ opacity: 0.12 })
+  createRadialShadowReceiverMaterial(0.12)
 );
 shadowPlane.rotation.x = -Math.PI / 2;
 shadowPlane.receiveShadow = true;
@@ -163,13 +214,9 @@ function updateShadowReceiverAndKeyLight() {
   // Sit flush on the hit-test floor, centered under the model anchor.
   shadowPlane.position.set(x, y + 0.002, z);
 
-  // Keep key direction fixed relative to the model (not the world origin).
+  // Top-down key: directly above the model, aimed at the anchor.
+  keyLight.position.set(x, y + KEY_LIGHT_HEIGHT, z);
   keyLightTarget.position.set(x, y, z);
-  keyLight.position.set(
-    x + KEY_LIGHT_OFFSET.x,
-    y + KEY_LIGHT_OFFSET.y,
-    z + KEY_LIGHT_OFFSET.z
-  );
   keyLight.shadow.camera.updateProjectionMatrix();
 }
 
