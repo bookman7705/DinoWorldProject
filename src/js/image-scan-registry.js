@@ -185,7 +185,7 @@ export const IMAGE_SCAN_TARGETS = [
     trackerJpg: "tracker_jpg/Pachycephalosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    wallYOffset: 0.0,
+    wallYOffset: -0.05,
     modelScale: 1
   },
   {
@@ -194,7 +194,7 @@ export const IMAGE_SCAN_TARGETS = [
     trackerJpg: "tracker_jpg/Tyrannosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    wallYOffset: 0.0,
+    wallYOffset: -0.05,
     modelScale: 0.5
   },
   {
@@ -203,7 +203,7 @@ export const IMAGE_SCAN_TARGETS = [
     trackerJpg: "tracker_jpg/Stegosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    wallYOffset: 0.0,
+    wallYOffset: -0.05,
     modelScale: 2.5
   },
   {
@@ -212,7 +212,7 @@ export const IMAGE_SCAN_TARGETS = [
     trackerJpg: "tracker_jpg/Stygimoloch.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    wallYOffset: 0.0,
+    wallYOffset: -0.05,
     modelScale: 1
   },
   {
@@ -221,7 +221,7 @@ export const IMAGE_SCAN_TARGETS = [
     trackerJpg: "tracker_jpg/Brontosaurus.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    wallYOffset: 0.0,
+    wallYOffset: -0.05,
     modelScale: 1
   },
   {
@@ -230,7 +230,7 @@ export const IMAGE_SCAN_TARGETS = [
     trackerJpg: "tracker_jpg/Triceratops.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    wallYOffset: -0.10,
+    wallYOffset: -0.05,
     modelScale: 1
   },
   {
@@ -239,7 +239,7 @@ export const IMAGE_SCAN_TARGETS = [
     trackerJpg: "tracker_jpg/Velociraptor.jpg",
     modelRotation: [Math.PI / 2, 0, 0],
     modelPosition: [0, 0, 0],
-    wallYOffset: 0.0,
+    wallYOffset: -0.05,
     modelScale: 0.20
   }
 ];

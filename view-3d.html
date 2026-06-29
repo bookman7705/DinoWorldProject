@@ -15,6 +15,12 @@
   </script>
 </head>
 <body class="view-3d-body">
+  <script type="module">
+    const mosaId = new URLSearchParams(location.search).get("id")?.trim().toLowerCase();
+    if (mosaId === "mosa") {
+      document.body.classList.add("view-3d-mosasaurus");
+    }
+  </script>
   <div id="view-3d-overlay" class="ar-overlay">
     <button id="back-btn" class="overlay-btn">Back</button>
     <div class="overlay-panel">

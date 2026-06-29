@@ -57,5 +57,13 @@ export const MODEL_CREDITS = [
       "https://sketchfab.com/3d-models/tropical-island-f91862f8c38b481aa19edccac851eefb",
     license: "CC BY 4.0",
     licenseUrl: "https://creativecommons.org/licenses/by/4.0/"
+  },
+  {
+    modelName: "Sea Weed",
+    creators: "rkuhlf",
+    sourceUrl:
+      "https://sketchfab.com/3d-models/sea-weed-d97c596b189845b681cc8eef8a3ab429",
+    license: "CC BY 4.0",
+    licenseUrl: "https://creativecommons.org/licenses/by/4.0/"
   }
 ];

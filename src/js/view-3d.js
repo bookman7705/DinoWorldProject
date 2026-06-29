@@ -51,6 +51,12 @@ if (view3dConfig.description) {
   descriptionEl.hidden = true;
 }
 
+if (selection.id === "mosa") {
+  document.body.classList.add("view-3d-mosasaurus");
+  const { initMosasaurusView } = await import("./view-3d/mosasaurus-scene.js");
+  initMosasaurusView({ selection, view3dConfig, statusEl });
+} else {
+
 const isIOS =
   /iPad|iPhone|iPod/.test(navigator.userAgent) ||
   (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -201,3 +207,5 @@ function animate() {
 }
 
 animate();
+
+}

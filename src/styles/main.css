@@ -460,6 +460,21 @@ a.settings-option,
   -webkit-touch-callout: none;
 }
 
+.view-3d-body.view-3d-mosasaurus {
+  background: #0a2840;
+}
+
+.view-3d-body.view-3d-mosasaurus .overlay-title,
+.view-3d-body.view-3d-mosasaurus .overlay-help,
+.view-3d-body.view-3d-mosasaurus .overlay-description {
+  color: rgba(200, 235, 255, 0.92);
+  text-shadow: 0 1px 12px rgba(0, 40, 80, 0.8);
+}
+
+.view-3d-body.view-3d-mosasaurus .overlay-status {
+  color: rgba(160, 210, 240, 0.85);
+}
+
 .ar-ios-body,
 .image-scan-body {
   margin: 0;

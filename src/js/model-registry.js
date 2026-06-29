@@ -42,12 +42,13 @@ export const MODEL_REGISTRY = {
     iosFile: "mosasaurus.usdz",
     defaultScale: 0.65,
     view3d: {
-      position: [0, 2, 0],
+      position: [0, 3, 0],
       scale: [10, 10, 10],
       rotation: [0, -Math.PI / 2, 0],
+      spotlightTarget: [0, 3, 0],
       camera: {
         target: [0, 3, 0],
-        initialPosition: [-15, 5, 0],
+        initialPosition: [-15, 6, 0],
         minDistance: 7,
         maxDistance: 20,
         minPitch: 0.2,
