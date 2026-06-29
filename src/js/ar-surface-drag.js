@@ -6,8 +6,8 @@ const HORIZONTAL_NORMAL_DOT = 0.85;
 /** Start dragging after this many pixels of movement. */
 export const DRAG_DEAD_ZONE_PX = 12;
 
-/** Start rotating after this many radians of twist. */
-export const ROTATE_DEAD_ZONE_RAD = 0.02;
+/** Start rotating after this many radians of twist (lower = easier to engage). */
+export const ROTATE_DEAD_ZONE_RAD = 0.008;
 
 /** Pinch scale must change by this ratio before scale mode activates. */
 export const SCALE_DEAD_ZONE_RATIO = 0.018;
@@ -17,7 +17,7 @@ const PX_TO_WORLD = 0.0025;
 
 /** Per-frame caps to avoid touch spikes. */
 const MAX_DRAG_PX_PER_FRAME = 48;
-const MAX_ROTATION_RAD_PER_FRAME = 0.06;
+const MAX_ROTATION_RAD_PER_FRAME = 0.1;
 const MAX_SCALE_RATIO_PER_FRAME = 1.06;
 const MIN_SCALE_RATIO_PER_FRAME = 1 / MAX_SCALE_RATIO_PER_FRAME;
 
@@ -95,6 +95,21 @@ export function lockGroundAtPlacement(frame, hitTestSource, localSpace, modelRoo
   if (plane) {
     modelRoot.position.set(plane.x, plane.y, plane.z);
   }
+}
+
+/** Keep model Y on the detected floor at its current XZ (prevents float/slide on camera move). */
+export function snapModelGroundY(frame, hitTestSource, localSpace, modelRoot) {
+  if (!frame || !hitTestSource || !localSpace || !modelRoot) return false;
+
+  const hits = frame.getHitTestResults(hitTestSource);
+  const plane = getBestHorizontalPlane(hits, localSpace, modelRoot.position);
+
+  if (plane) {
+    modelRoot.position.y = plane.y;
+    return true;
+  }
+
+  return false;
 }
 
 /** Per-frame finger separation change below this is treated as twist, not pinch. */
@@ -238,33 +253,29 @@ export function processTwoFingerGesture(
   const scaleDev = Math.abs(totalPinchRatio - 1);
   const framePinchChange = Math.abs(rawFrameScaleRatio - 1);
 
+  // Twist accumulates unless this frame is dominated by pinch (scale + rotate can coexist).
   if (framePinchChange < PINCH_FRAME_STABLE_RATIO) {
     gesture.rotateAccumRad += Math.abs(angleDelta);
   }
 
   gesture.scaleAccumDev = Math.max(gesture.scaleAccumDev, scaleDev);
 
-  if (gesture.rotating) {
-    if (framePinchChange < PINCH_FRAME_STABLE_RATIO && angleDelta !== 0) {
-      gesture.pendingRotationRad += angleDelta;
-    }
-
-    gesture.lastDistance = metrics.distance;
-    gesture.lastAngle = metrics.angle;
-    return;
+  if (!gesture.scaling && gesture.scaleAccumDev > scaleDeadZoneRatio) {
+    gesture.scaling = true;
+    gesture.transformEngaged = true;
   }
 
-  const pinchReady = gesture.scaleAccumDev > scaleDeadZoneRatio;
-  const twistReady = gesture.rotateAccumRad >= rotateDeadZoneRad;
+  if (!gesture.rotating && gesture.rotateAccumRad >= rotateDeadZoneRad) {
+    gesture.rotating = true;
+    gesture.transformEngaged = true;
+  }
 
-  if (pinchReady) {
-    gesture.scaling = true;
+  if (gesture.scaling && framePinchRatio !== 1) {
     gesture.pendingScaleRatio *= framePinchRatio;
     gesture.lastPinchSpan = pinchSpan;
   }
 
-  if (twistReady && framePinchChange < PINCH_FRAME_STABLE_RATIO && angleDelta !== 0) {
-    gesture.rotating = true;
+  if (gesture.rotating && angleDelta !== 0) {
     gesture.pendingRotationRad += angleDelta;
   }
 
@@ -273,7 +284,7 @@ export function processTwoFingerGesture(
 }
 
 export function applyScaleFromGesture(gesture, modelRoot) {
-  if (!modelRoot || gesture.rotating || gesture.pendingScaleRatio === 1) return false;
+  if (!modelRoot || gesture.pendingScaleRatio === 1) return false;
 
   const frameRatio = clampScaleRatio(gesture.pendingScaleRatio);
   const nextScale = THREE.MathUtils.clamp(
@@ -317,6 +328,10 @@ export function createGestureState() {
     dragging: false,
     scaling: false,
     rotating: false,
+    /** Set once pinch or twist engages; blocks single-finger drag until all touches lift. */
+    transformEngaged: false,
+    /** True after single-finger drag crosses the dead zone (used for re-anchor on release). */
+    dragEngaged: false,
     startX: 0,
     startY: 0,
     lastX: 0,
@@ -379,6 +394,8 @@ export function clearGesture(gesture) {
   gesture.singleTouch = false;
   gesture.twoFinger = false;
   gesture.dragging = false;
+  gesture.dragEngaged = false;
+  gesture.transformEngaged = false;
   gesture.dragAccumPx = 0;
   gesture.pendingDeltaX = 0;
   gesture.pendingDeltaY = 0;
@@ -386,7 +403,7 @@ export function clearGesture(gesture) {
 }
 
 export function movementBlocked(gesture) {
-  return gesture.twoFinger || gesture.rotating;
+  return gesture.twoFinger || gesture.transformEngaged;
 }
 
 export function accumulateSingleTouchMove(gesture, touch) {
@@ -406,6 +423,7 @@ export function accumulateSingleTouchMove(gesture, touch) {
       return false;
     }
     gesture.dragging = true;
+    gesture.dragEngaged = true;
   }
 
   gesture.pendingDeltaX += dx;

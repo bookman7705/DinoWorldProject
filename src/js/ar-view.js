@@ -21,6 +21,7 @@ import {
   processTwoFingerGesture,
   resetSingleTouch,
   resetTwoFinger,
+  snapModelGroundY,
   getTwoFingerMetricsFromTouchList,
   updateModelGrounding
 } from "./ar-surface-drag.js";
@@ -247,6 +248,7 @@ let mixer = null;
 let placed = false;
 let baseScale = 0.1;
 let needsGroundLock = false;
+let needsGroundReanchor = false;
 
 function updateScaleDisplay() {
   if (!debugMode || !modelRoot || !placed || !scaleEl) {
@@ -404,6 +406,9 @@ function onTouchEnd(event) {
   }
 
   if (event.touches.length === 0) {
+    if (gesture.dragEngaged) {
+      needsGroundReanchor = true;
+    }
     clearGesture(gesture);
     return;
   }
@@ -438,13 +443,21 @@ renderer.setAnimationLoop((_, frame) => {
   }
 
   if (placed && modelRoot) {
-    if (frame && needsGroundLock && hitTestSource && localSpace) {
-      lockGroundAtPlacement(frame, hitTestSource, localSpace, modelRoot);
-      needsGroundLock = false;
-    }
-
     if (updateModelGrounding(modelRoot, gesture, getActiveCamera())) {
       updateScaleDisplay();
+    }
+
+    if (frame && hitTestSource && localSpace) {
+      if (needsGroundLock) {
+        lockGroundAtPlacement(frame, hitTestSource, localSpace, modelRoot);
+        needsGroundLock = false;
+      } else if (needsGroundReanchor) {
+        lockGroundAtPlacement(frame, hitTestSource, localSpace, modelRoot);
+        needsGroundReanchor = false;
+      } else {
+        // Keep Y on the detected floor under the current XZ (after drag this frame).
+        snapModelGroundY(frame, hitTestSource, localSpace, modelRoot);
+      }
     }
 
     updateShadowReceiverAndKeyLight();
@@ -471,6 +484,7 @@ renderer.setAnimationLoop((_, frame) => {
         localSpace = null;
         hitTestSource = null;
         needsGroundLock = false;
+        needsGroundReanchor = false;
         placed = false;
         shadowPlane.visible = false;
         setGestureInputActive(false);
