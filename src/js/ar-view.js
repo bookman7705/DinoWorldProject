@@ -143,54 +143,46 @@ const KEY_LIGHT_HEIGHT = 10;
 const { keyLight, keyLightTarget } = setupArSceneLighting(scene);
 
 /**
- * Shadow receiver with radial opacity falloff — strongest under the model,
- * fading toward the plane edges (same shadow-map pipeline as ShadowMaterial).
+ * Shadow receiver with radial opacity falloff — extends ShadowMaterial so Three.js
+ * wires shadow-map uniforms correctly (custom ShaderMaterial crashes on mobile).
  */
 function createRadialShadowReceiverMaterial(opacity = 0.12) {
-  return new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    lights: true,
-    uniforms: {
-      opacity: { value: opacity },
-      // UV distance where falloff begins / ends (0 = center, 1 = plane edge).
-      falloffInner: { value: 0.0 },
-      falloffOuter: { value: 0.85 },
-    },
-    vertexShader: `
-      #include <common>
-      #include <uv_pars_vertex>
-      #include <shadowmap_pars_vertex>
+  const material = new THREE.ShadowMaterial({ opacity });
 
-      void main() {
-        #include <uv_vertex>
-        #include <begin_vertex>
-        #include <project_vertex>
-        #include <worldpos_vertex>
-        #include <shadowmap_vertex>
-      }
-    `,
-    fragmentShader: `
-      #include <uv_pars_fragment>
-      uniform float opacity;
-      uniform float falloffInner;
-      uniform float falloffOuter;
+  material.customProgramCacheKey = () => "ar-radial-shadow-receiver";
 
-      #include <common>
-      #include <packing>
-      #include <bsdfs>
-      #include <lights_pars_begin>
-      #include <shadowmap_pars_fragment>
-      #include <shadowmask_pars_fragment>
+  material.onBeforeCompile = (shader) => {
+    shader.defines = { ...shader.defines, USE_UV: "" };
+    shader.uniforms.falloffInner = { value: 0.0 };
+    shader.uniforms.falloffOuter = { value: 0.85 };
 
-      void main() {
-        float shadow = 1.0 - getShadowMask();
-        float dist = length(vUv - 0.5) * 2.0;
-        float radial = 1.0 - smoothstep(falloffInner, falloffOuter, dist);
-        gl_FragColor = vec4(0.0, 0.0, 0.0, opacity * shadow * radial);
-      }
-    `,
-  });
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        "#include <common>",
+        "#include <common>\n#include <uv_pars_vertex>"
+      )
+      .replace(
+        "#include <begin_vertex>",
+        "#include <uv_vertex>\n#include <begin_vertex>"
+      );
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        `#include <common>
+#include <uv_pars_fragment>
+uniform float falloffInner;
+uniform float falloffOuter;`
+      )
+      .replace(
+        "gl_FragColor = vec4( color, opacity * ( 1.0 - getShadowMask() ) );",
+        `float dist = length( vUv - 0.5 ) * 2.0;
+float radial = 1.0 - smoothstep( falloffInner, falloffOuter, dist );
+gl_FragColor = vec4( color, opacity * ( 1.0 - getShadowMask() ) * radial );`
+      );
+  };
+
+  return material;
 }
 
 // Invisible floor patch; only shadow darkening is visible (with radial fade at edges).
@@ -217,6 +209,7 @@ function updateShadowReceiverAndKeyLight() {
   // Top-down key: directly above the model, aimed at the anchor.
   keyLight.position.set(x, y + KEY_LIGHT_HEIGHT, z);
   keyLightTarget.position.set(x, y, z);
+  keyLightTarget.updateMatrixWorld();
   keyLight.shadow.camera.updateProjectionMatrix();
 }
 
