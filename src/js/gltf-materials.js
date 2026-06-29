@@ -178,20 +178,38 @@ export function configureGltfRenderer(renderer, { exposure = 1.2 } = {}) {
 
 /**
  * AR scene lighting: ambient fill + hemisphere + key + fill directional.
+ * Key light casts shadows; returns handles so AR view can track the placed model.
  */
 export function setupArSceneLighting(scene) {
-  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
 
-  const hemisphere = new THREE.HemisphereLight(0xffffff, 0x556677, 1.3);
+  const hemisphere = new THREE.HemisphereLight(0xffffff, 0x556677, 0.9);
   scene.add(hemisphere);
 
-  const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
   keyLight.position.set(5, 10, 5);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(2048, 2048);
+  keyLight.shadow.camera.left = -1.5;
+  keyLight.shadow.camera.right = 1.5;
+  keyLight.shadow.camera.top = 1.5;
+  keyLight.shadow.camera.bottom = -1.5;
+  keyLight.shadow.camera.near = 0.5;
+  keyLight.shadow.camera.far = 20;
+  keyLight.shadow.bias = -0.0005;
+  keyLight.shadow.normalBias = 0.02;
+
+  const keyLightTarget = new THREE.Object3D();
+  keyLightTarget.position.set(0, 0, 0);
+  scene.add(keyLightTarget);
+  keyLight.target = keyLightTarget;
   scene.add(keyLight);
 
-  const fillLight = new THREE.DirectionalLight(0xffffff, 0.45);
+  const fillLight = new THREE.DirectionalLight(0xffffff, 0.35);
   fillLight.position.set(-6, 6, -4);
   scene.add(fillLight);
+
+  return { keyLight, keyLightTarget };
 }
 
 /**

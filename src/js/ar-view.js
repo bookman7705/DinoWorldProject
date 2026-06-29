@@ -11,7 +11,6 @@ import {
   configureGltfRenderer,
   setupArSceneLighting
 } from "./gltf-materials.js";
-import { CONTACT_SHADOW_ENABLED, createContactShadow } from "./ar-contact-shadow.js";
 import {
   accumulateSingleTouchMove,
   clearGesture,
@@ -122,6 +121,8 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.xr.enabled = true;
 configureGltfRenderer(renderer, { exposure: 1.2 });
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 renderer.domElement.style.touchAction = "none";
 
@@ -135,7 +136,40 @@ window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-setupArSceneLighting(scene);
+/** Key light offset from the model anchor — preserves the original rig direction. */
+const KEY_LIGHT_OFFSET = new THREE.Vector3(5, 10, 5);
+const { keyLight, keyLightTarget } = setupArSceneLighting(scene);
+
+// Invisible floor patch that only shows the key light's shadow.
+const shadowPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(4, 4),
+  new THREE.ShadowMaterial({ opacity: 0.45 })
+);
+shadowPlane.rotation.x = -Math.PI / 2;
+shadowPlane.receiveShadow = true;
+shadowPlane.castShadow = false;
+shadowPlane.visible = false;
+scene.add(shadowPlane);
+
+function updateShadowReceiverAndKeyLight() {
+  if (!placed || !modelRoot) {
+    return;
+  }
+
+  const { x, y, z } = modelRoot.position;
+
+  // Sit flush on the hit-test floor, centered under the model anchor.
+  shadowPlane.position.set(x, y + 0.002, z);
+
+  // Keep key direction fixed relative to the model (not the world origin).
+  keyLightTarget.position.set(x, y, z);
+  keyLight.position.set(
+    x + KEY_LIGHT_OFFSET.x,
+    y + KEY_LIGHT_OFFSET.y,
+    z + KEY_LIGHT_OFFSET.z
+  );
+  keyLight.shadow.camera.updateProjectionMatrix();
+}
 
 const reticle = new THREE.Mesh(
   new THREE.RingGeometry(0.12, 0.16, 32).rotateX(-Math.PI / 2),
@@ -172,12 +206,14 @@ loadGltf(loader, selection.entry.modelFile, {
     modelRoot = new THREE.Group();
     model = gltf.scene;
     configureGltfMaterials(model, { debug: debugMaterials });
+    model.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+      }
+    });
     baseScale = selection.entry.defaultScale || 0.1;
     modelRoot.scale.set(baseScale, baseScale, baseScale);
     modelRoot.visible = false;
-    if (CONTACT_SHADOW_ENABLED) {
-      modelRoot.add(createContactShadow(model, renderer));
-    }
     modelRoot.add(model);
     scene.add(modelRoot);
 
@@ -211,6 +247,8 @@ controller.addEventListener("select", () => {
   modelRoot.visible = true;
   placed = true;
   needsGroundLock = true;
+  shadowPlane.visible = true;
+  updateShadowReceiverAndKeyLight();
   setGestureInputActive(true);
   reticle.visible = false;
   helpEl.hidden = true;
@@ -350,6 +388,8 @@ renderer.setAnimationLoop((_, frame) => {
     if (updateModelGrounding(modelRoot, gesture, getActiveCamera())) {
       updateScaleDisplay();
     }
+
+    updateShadowReceiverAndKeyLight();
   }
 
   if (frame) {
@@ -374,6 +414,7 @@ renderer.setAnimationLoop((_, frame) => {
         hitTestSource = null;
         needsGroundLock = false;
         placed = false;
+        shadowPlane.visible = false;
         setGestureInputActive(false);
         helpEl.hidden = false;
       });
